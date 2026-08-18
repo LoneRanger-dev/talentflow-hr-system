@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { CandidateEvaluation, DecisionType } from '../types';
-import { Search, Filter, ArrowUpDown, ChevronRight, Mail, Sparkles, Trash2, Target, Sparkle } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, ChevronRight, Mail, Sparkles, Trash2, Target, Sparkle, CheckSquare, Square, RefreshCw, XCircle } from 'lucide-react';
 
 interface CandidateTableProps {
   candidates: CandidateEvaluation[];
@@ -10,6 +10,8 @@ interface CandidateTableProps {
   onSelectCandidate: (candidate: CandidateEvaluation) => void;
   onOpenEmail: (candidate: CandidateEvaluation) => void;
   onDeleteCandidate: (candidate: CandidateEvaluation) => void;
+  onBulkDeleteCandidates: (candidateIds: string[]) => void;
+  onClearAllCandidates: () => void;
 }
 
 export const CandidateTable: React.FC<CandidateTableProps> = ({
@@ -17,11 +19,14 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
   activeJdTitle,
   onSelectCandidate,
   onOpenEmail,
-  onDeleteCandidate
+  onDeleteCandidate,
+  onBulkDeleteCandidates,
+  onClearAllCandidates
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<'ALL' | DecisionType>('ALL');
   const [sortOrder, setSortOrder] = useState<'newest' | 'score-desc' | 'score-asc'>('newest');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Filter candidates
   const filteredCandidates = candidates.filter(c => {
@@ -33,7 +38,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
     return matchesFilter && matchesSearch;
   });
 
-  // Sort candidates (Newest first by default)
+  // Sort candidates
   const sortedCandidates = [...filteredCandidates].sort((a, b) => {
     if (sortOrder === 'newest') {
       if (a.is_new && !b.is_new) return -1;
@@ -43,6 +48,37 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
     if (sortOrder === 'score-desc') return b.total_score - a.total_score;
     return a.total_score - b.total_score;
   });
+
+  const allSelected = sortedCandidates.length > 0 && sortedCandidates.every(c => selectedIds.includes(c.candidate_id));
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(sortedCandidates.map(c => c.candidate_id));
+    }
+  };
+
+  const toggleSelectCandidate = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) return;
+    if (confirm(`Are you sure you want to delete ${selectedIds.length} selected candidate resumes?`)) {
+      onBulkDeleteCandidates(selectedIds);
+      setSelectedIds([]);
+    }
+  };
+
+  const handleClearAll = () => {
+    if (confirm(`Are you sure you want to clear ALL ${candidates.length} candidate resumes to start a fresh batch of recruitment evaluation?`)) {
+      onClearAllCandidates();
+      setSelectedIds([]);
+    }
+  };
 
   const getDecisionBadge = (decision: DecisionType) => {
     switch (decision) {
@@ -74,19 +110,60 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
   };
 
   return (
-    <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
+    <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden space-y-0">
       
-      {/* Target JD Banner */}
+      {/* Target JD & Clear All Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 bg-indigo-950/30 border-b border-slate-800 text-xs">
         <div className="flex items-center space-x-2">
           <Target className="h-4 w-4 text-indigo-400 shrink-0" />
           <span className="text-slate-400 font-medium">Evaluated Against Role:</span>
           <span className="text-white font-bold">{activeJdTitle || 'Senior Full Stack Engineer'}</span>
         </div>
-        <span className="text-[11px] text-indigo-300 font-medium">
-          {candidates.length} Candidate Profiles Evaluated • Multi-Agent Pipeline Active
-        </span>
+
+        <div className="flex items-center space-x-3">
+          <span className="text-[11px] text-indigo-300 font-medium hidden md:inline">
+            {candidates.length} Profiles Evaluated
+          </span>
+
+          {candidates.length > 0 && (
+            <button
+              onClick={handleClearAll}
+              className="flex items-center space-x-1.5 rounded-lg bg-rose-950/40 px-3 py-1.5 text-xs font-semibold text-rose-300 border border-rose-500/30 hover:bg-rose-900 transition"
+              title="Remove all candidate resumes to start fresh"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Clear All Resumes (Reset)</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Bulk Action Banner when checkboxed */}
+      {selectedIds.length > 0 && (
+        <div className="flex items-center justify-between px-5 py-2.5 bg-indigo-600/20 border-b border-indigo-500/30 text-xs text-indigo-200 animate-fadeIn">
+          <div className="flex items-center space-x-2 font-semibold">
+            <CheckSquare className="h-4 w-4 text-indigo-400" />
+            <span>{selectedIds.length} Candidate(s) Selected</span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center space-x-1.5 rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white shadow hover:bg-rose-500 transition"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete Selected ({selectedIds.length})</span>
+            </button>
+
+            <button
+              onClick={() => setSelectedIds([])}
+              className="rounded-lg bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:text-white"
+            >
+              Clear Selection
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Controls Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 border-b border-slate-800/80 bg-slate-900/40">
@@ -140,6 +217,15 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
         <table className="w-full text-left text-xs text-slate-300">
           <thead className="bg-slate-900/80 uppercase text-[10px] font-bold tracking-wider text-slate-400 border-b border-slate-800">
             <tr>
+              <th className="px-4 py-3.5 w-10 text-center">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                  title="Select All Candidates"
+                />
+              </th>
               <th className="px-6 py-3.5">Candidate Name & Title</th>
               <th className="px-6 py-3.5">Key Technical Skills</th>
               <th className="px-6 py-3.5 text-center">Score (0-10)</th>
@@ -148,99 +234,112 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
-            {sortedCandidates.map(candidate => (
-              <tr 
-                key={candidate.candidate_id}
-                className={`hover:bg-slate-800/40 transition duration-150 group ${
-                  candidate.is_new ? 'bg-indigo-950/20' : ''
-                }`}
-              >
-                {/* Candidate Name & Title */}
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 font-bold text-white shadow-glow-primary text-xs shrink-0">
-                      {candidate.candidate_name.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-semibold text-white group-hover:text-indigo-300 transition">
-                          {candidate.candidate_name}
-                        </span>
-                        {candidate.is_new && (
-                          <span className="inline-flex items-center rounded-full bg-indigo-500/20 px-2 py-0.5 text-[9px] font-bold text-indigo-300 border border-indigo-500/40 shadow-glow-primary">
-                            <Sparkle className="mr-0.5 h-2.5 w-2.5" /> NEW
-                          </span>
-                        )}
+            {sortedCandidates.map(candidate => {
+              const isSelected = selectedIds.includes(candidate.candidate_id);
+              return (
+                <tr 
+                  key={candidate.candidate_id}
+                  className={`hover:bg-slate-800/40 transition duration-150 group ${
+                    isSelected ? 'bg-indigo-950/40' : candidate.is_new ? 'bg-indigo-950/20' : ''
+                  }`}
+                >
+                  {/* Select Checkbox */}
+                  <td className="px-4 py-4 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectCandidate(candidate.candidate_id)}
+                      className="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                    />
+                  </td>
+
+                  {/* Candidate Name & Title */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 font-bold text-white shadow-glow-primary text-xs shrink-0">
+                        {candidate.candidate_name.charAt(0)}
                       </div>
-                      <div className="text-[11px] text-slate-400 line-clamp-1">{candidate.current_title}</div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-semibold text-white group-hover:text-indigo-300 transition">
+                            {candidate.candidate_name}
+                          </span>
+                          {candidate.is_new && (
+                            <span className="inline-flex items-center rounded-full bg-indigo-500/20 px-2 py-0.5 text-[9px] font-bold text-indigo-300 border border-indigo-500/40 shadow-glow-primary">
+                              <Sparkle className="mr-0.5 h-2.5 w-2.5" /> NEW
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-400 line-clamp-1">{candidate.current_title}</div>
+                      </div>
                     </div>
-                  </div>
-                </td>
+                  </td>
 
-                {/* Key Skills Tags */}
-                <td className="px-6 py-4">
-                  <div className="flex flex-wrap gap-1 max-w-xs">
-                    {candidate.key_skills.slice(0, 4).map((skill, idx) => (
-                      <span 
-                        key={idx}
-                        className="rounded-md bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-300 border border-slate-800"
+                  {/* Key Skills Tags */}
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-1 max-w-xs">
+                      {candidate.key_skills.slice(0, 4).map((skill, idx) => (
+                        <span 
+                          key={idx}
+                          className="rounded-md bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-300 border border-slate-800"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                      {candidate.key_skills.length > 4 && (
+                        <span className="text-[10px] text-slate-500 self-center">+{candidate.key_skills.length - 4}</span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Total Score */}
+                  <td className="px-6 py-4 text-center">
+                    <span className={`inline-flex items-center rounded-xl px-2.5 py-1 text-xs font-extrabold border ${getScoreColor(candidate.total_score)}`}>
+                      {candidate.total_score.toFixed(1)} / 10
+                    </span>
+                  </td>
+
+                  {/* Decision Badge */}
+                  <td className="px-6 py-4 text-center">
+                    {getDecisionBadge(candidate.decision)}
+                  </td>
+
+                  {/* Action Buttons */}
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end space-x-1.5">
+                      <button
+                        onClick={() => onOpenEmail(candidate)}
+                        className="rounded-lg bg-slate-800 p-2 text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                        title="Generate AI Outreach Email"
                       >
-                        {skill}
-                      </span>
-                    ))}
-                    {candidate.key_skills.length > 4 && (
-                      <span className="text-[10px] text-slate-500 self-center">+{candidate.key_skills.length - 4}</span>
-                    )}
-                  </div>
-                </td>
+                        <Mail className="h-3.5 w-3.5" />
+                      </button>
 
-                {/* Total Score */}
-                <td className="px-6 py-4 text-center">
-                  <span className={`inline-flex items-center rounded-xl px-2.5 py-1 text-xs font-extrabold border ${getScoreColor(candidate.total_score)}`}>
-                    {candidate.total_score.toFixed(1)} / 10
-                  </span>
-                </td>
+                      <button
+                        onClick={() => onDeleteCandidate(candidate)}
+                        className="rounded-lg bg-slate-800 p-2 text-slate-400 hover:bg-rose-900/50 hover:text-rose-300 transition"
+                        title="Delete Candidate Resume Details"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
 
-                {/* Decision Badge */}
-                <td className="px-6 py-4 text-center">
-                  {getDecisionBadge(candidate.decision)}
-                </td>
-
-                {/* Action Buttons */}
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end space-x-1.5">
-                    <button
-                      onClick={() => onOpenEmail(candidate)}
-                      className="rounded-lg bg-slate-800 p-2 text-slate-300 hover:bg-slate-700 hover:text-white transition"
-                      title="Generate AI Outreach Email"
-                    >
-                      <Mail className="h-3.5 w-3.5" />
-                    </button>
-
-                    <button
-                      onClick={() => onDeleteCandidate(candidate)}
-                      className="rounded-lg bg-slate-800 p-2 text-slate-400 hover:bg-rose-900/50 hover:text-rose-300 transition"
-                      title="Delete Candidate Resume Details"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-
-                    <button
-                      onClick={() => onSelectCandidate(candidate)}
-                      className="flex items-center space-x-1 rounded-lg bg-indigo-600/20 px-3 py-1.5 text-xs font-medium text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600 hover:text-white transition duration-150"
-                    >
-                      <span>AI Analysis</span>
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      <button
+                        onClick={() => onSelectCandidate(candidate)}
+                        className="flex items-center space-x-1 rounded-lg bg-indigo-600/20 px-3 py-1.5 text-xs font-medium text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600 hover:text-white transition duration-150"
+                      >
+                        <span>AI Analysis</span>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
 
             {sortedCandidates.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                  No candidates match your search or filter criteria.
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  No candidate resumes in current dataset. Click <strong>Upload Resume</strong> to add new candidate files!
                 </td>
               </tr>
             )}

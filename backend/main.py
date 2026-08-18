@@ -112,7 +112,7 @@ PRESET_JOB_DESCRIPTIONS = {
 app = FastAPI(
     title="TalentFlow Autonomous HR System API",
     description="Enterprise HR AI Recruitment SaaS Engine powered by LangChain & Google Gemini API",
-    version="2.3.0"
+    version="2.4.0"
 )
 
 app.add_middleware(
@@ -234,6 +234,9 @@ class EmailGenRequest(BaseModel):
     candidate_id: str
     job_title: Optional[str] = None
 
+class BulkDeleteRequest(BaseModel):
+    candidate_ids: List[str]
+
 # Endpoints
 @app.get("/api/health")
 def health_check():
@@ -335,6 +338,40 @@ def get_candidates():
         "active_jd_image": state.active_jd_image
     }
 
+@app.delete("/api/candidates/clear-all")
+def clear_all_candidates():
+    """Clear all candidates from state to start fresh."""
+    state.cached_candidates.clear()
+    state.cached_evaluations.clear()
+    return {
+        "status": "cleared",
+        "message": "Cleared all candidate resumes from system memory.",
+        "candidates": [],
+        "total": 0,
+        "summary": state.decision_agent.get_summary_stats()
+    }
+
+@app.post("/api/candidates/bulk-delete")
+def bulk_delete_candidates(req: BulkDeleteRequest):
+    """Bulk delete selected candidate IDs."""
+    deleted_ids = req.candidate_ids
+    for cid in deleted_ids:
+        if cid in state.cached_candidates:
+            del state.cached_candidates[cid]
+            
+    state.cached_evaluations = [
+        e for e in state.cached_evaluations 
+        if e.get("candidate_id") not in deleted_ids and e.get("candidate_name").lower() not in [i.lower() for i in deleted_ids]
+    ]
+
+    return {
+        "status": "bulk_deleted",
+        "deleted_count": len(deleted_ids),
+        "remaining_count": len(state.cached_evaluations),
+        "candidates": state.cached_evaluations,
+        "summary": state.decision_agent.get_summary_stats()
+    }
+
 @app.delete("/api/candidates/{candidate_id}")
 def delete_candidate(candidate_id: str):
     deleted = False
@@ -366,7 +403,6 @@ def process_pipeline():
 def get_analytics():
     return state.decision_agent.get_summary_stats()
 
-# Single Resume Upload Endpoint
 @app.post("/api/upload-resume")
 async def upload_resume(
     file: Optional[UploadFile] = File(None),
@@ -428,12 +464,10 @@ async def upload_resume(
             }
         raise HTTPException(status_code=400, detail=f"Failed to process resume: {str(e)}")
 
-# Batch Multiple Resumes Upload Endpoint
 @app.post("/api/upload-batch-resumes")
 async def upload_batch_resumes(
     files: List[UploadFile] = File(...)
 ):
-    """Batch process multiple resume files (PDF, DOCX, TXT, CSV) simultaneously."""
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded for batch processing.")
 
@@ -450,11 +484,9 @@ async def upload_batch_resumes(
 
             candidate_id = filename.rsplit(".", 1)[0].lower().replace(" ", "_").replace("-", "_")
 
-            # 1. Resume Agent Extraction
             extracted_profile = state.resume_agent.extract_resume_info(extracted_text, candidate_id)
             state.cached_candidates[candidate_id] = extracted_profile
             
-            # 2. Decision Agent Evaluation
             evaluation = state.decision_agent.evaluate_candidate(extracted_profile)
             evaluation["is_new"] = True
             processed_results.append(evaluation)
@@ -462,7 +494,6 @@ async def upload_batch_resumes(
         except Exception as e:
             print(f"⚠️ Error in batch item {file.filename}: {e}")
 
-    # Re-evaluate complete pipeline
     run_full_pipeline()
 
     return {

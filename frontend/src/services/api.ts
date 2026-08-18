@@ -263,7 +263,7 @@ export async function fetchHealth(): Promise<HealthResponse> {
     llm_active: true,
     active_jd_title: 'Senior Full Stack Engineer - AI & Web Applications',
     active_jd_image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
-    total_candidates: 11,
+    total_candidates: MOCK_CANDIDATES.length,
     thresholds: { advance: 7.0, maybe: 5.0 }
   };
 }
@@ -331,6 +331,38 @@ export async function deleteCandidate(candidateId: string): Promise<any> {
     MOCK_CANDIDATES.splice(idx, 1);
   }
   return { status: 'deleted', candidate_id: candidateId, candidates: MOCK_CANDIDATES };
+}
+
+export async function bulkDeleteCandidates(candidateIds: string[]): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE}/candidates/bulk-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ candidate_ids: candidateIds })
+    });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    console.warn('API offline, bulk deleting from client state');
+  }
+
+  const remaining = MOCK_CANDIDATES.filter(c => !candidateIds.includes(c.candidate_id) && !candidateIds.includes(c.candidate_name.toLowerCase()));
+  MOCK_CANDIDATES.length = 0;
+  MOCK_CANDIDATES.push(...remaining);
+  return { status: 'bulk_deleted', candidates: MOCK_CANDIDATES };
+}
+
+export async function clearAllCandidates(): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE}/candidates/clear-all`, {
+      method: 'DELETE'
+    });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    console.warn('API offline, clearing mock candidates');
+  }
+
+  MOCK_CANDIDATES.length = 0;
+  return { status: 'cleared', candidates: [], total: 0 };
 }
 
 function createClientEvaluatedCandidate(filename: string, candidateName?: string, textContent: string = ''): CandidateEvaluation {
@@ -426,7 +458,6 @@ export async function uploadBatchResumeFiles(files: File[]): Promise<{ status: s
     console.warn('Backend API batch upload offline/error, executing client batch parser fallback');
   }
 
-  // Client-side batch fallback processing
   const newCandidates: CandidateEvaluation[] = [];
   for (const file of files) {
     const textContent = await file.text().catch(() => '');
@@ -472,7 +503,25 @@ export async function fetchAnalytics(): Promise<SystemAnalytics> {
   } catch (e) {
     console.warn('API offline, returning mock analytics');
   }
-  return MOCK_ANALYTICS;
+  return {
+    total_candidates: MOCK_CANDIDATES.length,
+    decision_breakdown: {
+      ADVANCE: MOCK_CANDIDATES.filter(c => c.decision === 'ADVANCE').length,
+      MAYBE: MOCK_CANDIDATES.filter(c => c.decision === 'MAYBE').length,
+      REJECT: MOCK_CANDIDATES.filter(c => c.decision === 'REJECT').length
+    },
+    average_score: MOCK_CANDIDATES.length > 0 ? parseFloat((MOCK_CANDIDATES.reduce((acc, c) => acc + c.total_score, 0) / MOCK_CANDIDATES.length).toFixed(2)) : 0,
+    total_processing_time_sec: MOCK_CANDIDATES.length * 1.5,
+    avg_time_per_candidate_sec: 1.5,
+    roi_analytics: {
+      manual_hours_required: parseFloat((MOCK_CANDIDATES.length * 0.35).toFixed(2)),
+      ai_hours_spent: 0.005,
+      hours_saved: parseFloat((MOCK_CANDIDATES.length * 0.35).toFixed(2)),
+      cost_savings_usd: MOCK_CANDIDATES.length * 28.00,
+      efficiency_gain_percentage: 99.8,
+      savings_per_hire: 28.00
+    }
+  };
 }
 
 export async function generateCandidateEmail(candidateId: string): Promise<CandidateEmail> {
@@ -491,24 +540,27 @@ export async function generateCandidateEmail(candidateId: string): Promise<Candi
   }
 
   const candidate = MOCK_CANDIDATES.find(c => c.candidate_id === candidateId || c.candidate_name === candidateId) || MOCK_CANDIDATES[0];
-  const decision = candidate.decision;
-  
+  const decision = candidate ? candidate.decision : 'ADVANCE';
+  const name = candidate ? candidate.candidate_name : 'Candidate';
+  const skills = candidate ? candidate.key_skills.slice(0, 3).join(', ') : 'Software Engineering';
+  const strength = candidate && candidate.strengths[0] ? candidate.strengths[0] : 'technical expertise';
+
   if (decision === 'ADVANCE') {
     return {
       subject: `Technical Interview Invitation: Role at TechFlow Solutions`,
-      body: `Dear ${candidate.candidate_name},\n\nThank you for applying to TechFlow Solutions! Our engineering leadership reviewed your application and was exceptionally impressed by your profile, particularly your ${candidate.strengths[0] || 'technical experience'}.\n\nWe would love to invite you for a 45-minute technical interview. Please let us know your availability over the coming days.\n\nBest regards,\nTalent Acquisition Team\nTechFlow Solutions`,
+      body: `Dear ${name},\n\nThank you for applying to TechFlow Solutions! Our engineering leadership reviewed your application and was exceptionally impressed by your profile, particularly your ${strength}.\n\nWe would love to invite you for a 45-minute technical interview. Please let us know your availability over the coming days.\n\nBest regards,\nTalent Acquisition Team\nTechFlow Solutions`,
       type: 'ADVANCE'
     };
   } else if (decision === 'MAYBE') {
     return {
       subject: `Application Update: Role at TechFlow Solutions`,
-      body: `Dear ${candidate.candidate_name},\n\nThank you for your interest in TechFlow Solutions. We reviewed your application and would like to schedule a brief 15-minute phone screen to discuss your background in ${candidate.key_skills.slice(0, 3).join(', ')}.\n\nPlease reply with your availability this week.\n\nBest regards,\nTalent Acquisition Team\nTechFlow Solutions`,
+      body: `Dear ${name},\n\nThank you for your interest in TechFlow Solutions. We reviewed your application and would like to schedule a brief 15-minute phone screen to discuss your background in ${skills}.\n\nPlease reply with your availability this week.\n\nBest regards,\nTalent Acquisition Team\nTechFlow Solutions`,
       type: 'MAYBE'
     };
   } else {
     return {
       subject: `Application Status: Role at TechFlow Solutions`,
-      body: `Dear ${candidate.candidate_name},\n\nThank you for applying for the position at TechFlow Solutions. We appreciate your interest in our company.\n\nAfter reviewing your application, we have decided to move forward with other candidates whose experience more closely matches our immediate requirements. We wish you every success in your search.\n\nBest regards,\nTalent Acquisition Team\nTechFlow Solutions`,
+      body: `Dear ${name},\n\nThank you for applying for the position at TechFlow Solutions. We appreciate your interest in our company.\n\nAfter reviewing your application, we have decided to move forward with other candidates whose experience more closely matches our immediate requirements. We wish you every success in your search.\n\nBest regards,\nTalent Acquisition Team\nTechFlow Solutions`,
       type: 'REJECT'
     };
   }

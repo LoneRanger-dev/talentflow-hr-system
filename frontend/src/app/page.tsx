@@ -1,54 +1,60 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CandidateEvaluation, SystemAnalytics, HealthResponse } from '../types';
-import { fetchHealth, fetchCandidates, fetchAnalytics, deleteCandidate, MOCK_CANDIDATES, MOCK_ANALYTICS } from '../services/api';
+import { 
+  CandidateEvaluation, 
+  SystemAnalytics, 
+  HealthResponse, 
+  CandidateEmail 
+} from '../types';
+import { 
+  fetchHealth, 
+  fetchCandidates, 
+  fetchAnalytics, 
+  deleteCandidate,
+  bulkDeleteCandidates,
+  clearAllCandidates,
+  generateCandidateEmail 
+} from '../services/api';
+
 import { Header } from '../components/Header';
 import { OverviewStats } from '../components/OverviewStats';
 import { CandidateTable } from '../components/CandidateTable';
 import { CandidateDrawer } from '../components/CandidateDrawer';
-import { JobConfigModal } from '../components/JobConfigModal';
 import { ResumeUploadModal } from '../components/ResumeUploadModal';
+import { JobConfigModal } from '../components/JobConfigModal';
 import { EmailModal } from '../components/EmailModal';
+import { Sparkles, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 
-export default function DashboardPage() {
-  const [candidates, setCandidates] = useState<CandidateEvaluation[]>(MOCK_CANDIDATES);
-  const [analytics, setAnalytics] = useState<SystemAnalytics>(MOCK_ANALYTICS);
-  const [llmProvider, setLlmProvider] = useState<string>('Google Gemini 1.5 Flash API (Active)');
-  const [activeJdTitle, setActiveJdTitle] = useState<string>('Senior Full Stack Engineer - AI & Web Applications');
-  const [activeJdImage, setActiveJdImage] = useState<string>('https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80');
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+export default function Home() {
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [candidates, setCandidates] = useState<CandidateEvaluation[]>([]);
+  const [analytics, setAnalytics] = useState<SystemAnalytics | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [reEvaluating, setReEvaluating] = useState<boolean>(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Modals & Drawers state
+  // Modals & Drawer State
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateEvaluation | null>(null);
-  const [emailCandidate, setEmailCandidate] = useState<CandidateEvaluation | null>(null);
-  const [isConfigOpen, setIsConfigOpen] = useState<boolean>(false);
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
+  const [isJobConfigOpen, setIsJobConfigOpen] = useState<boolean>(false);
+  const [emailCandidate, setEmailCandidate] = useState<{ candidate: CandidateEvaluation; email: CandidateEmail } | null>(null);
 
-  // Load API data
   const loadData = async () => {
-    setIsProcessing(true);
+    setLoading(true);
     try {
-      const healthData = await fetchHealth();
-      if (healthData.llm_provider) setLlmProvider(healthData.llm_provider);
-      if (healthData.active_jd_title) setActiveJdTitle(healthData.active_jd_title);
-      if (healthData.active_jd_image) setActiveJdImage(healthData.active_jd_image);
-
-      const candData = await fetchCandidates();
-      if (candData.candidates && candData.candidates.length > 0) {
-        setCandidates(candData.candidates);
-      }
-      if (candData.active_jd_title) setActiveJdTitle(candData.active_jd_title);
-      if (candData.active_jd_image) setActiveJdImage(candData.active_jd_image);
-
-      const analyticsData = await fetchAnalytics();
-      if (analyticsData) {
-        setAnalytics(analyticsData);
-      }
+      const [hData, cData, aData] = await Promise.all([
+        fetchHealth(),
+        fetchCandidates(),
+        fetchAnalytics()
+      ]);
+      setHealth(hData);
+      setCandidates(cData.candidates);
+      setAnalytics(aData);
     } catch (e) {
-      console.warn('Using fallback state');
+      console.error('Failed loading system data', e);
     } finally {
-      setIsProcessing(false);
+      setLoading(false);
     }
   };
 
@@ -56,119 +62,195 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  const handleSaveConfig = async (geminiKey: string, provider: string, advanceThreshold: number, maybeThreshold: number) => {
-    setIsProcessing(true);
+  const triggerNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleReEvaluate = async () => {
+    setReEvaluating(true);
     try {
-      await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gemini_key: geminiKey,
-          provider: provider,
-          advance_threshold: advanceThreshold,
-          maybe_threshold: maybeThreshold
-        })
-      });
-      await loadData();
+      const cData = await fetchCandidates();
+      const aData = await fetchAnalytics();
+      setCandidates(cData.candidates);
+      setAnalytics(aData);
+      triggerNotification('success', `Re-evaluated candidates against current target role: "${cData.active_jd_title || health?.active_jd_title}"`);
     } catch (e) {
-      console.warn('Offline config update applied to client state');
+      triggerNotification('error', 'Failed re-evaluating candidates');
     } finally {
-      setIsProcessing(false);
+      setReEvaluating(false);
     }
   };
 
   const handleDeleteCandidate = async (candidate: CandidateEvaluation) => {
-    if (confirm(`Are you sure you want to delete ${candidate.candidate_name}'s resume evaluation?`)) {
-      setIsProcessing(true);
+    if (confirm(`Delete '${candidate.candidate_name}' from current dataset?`)) {
       try {
-        await deleteCandidate(candidate.candidate_id);
-        setCandidates(prev => prev.filter(c => c.candidate_id !== candidate.candidate_id && c.candidate_name !== candidate.candidate_name));
+        const res = await deleteCandidate(candidate.candidate_id);
+        const [cData, aData] = await Promise.all([fetchCandidates(), fetchAnalytics()]);
+        setCandidates(cData.candidates);
+        setAnalytics(aData);
         if (selectedCandidate?.candidate_id === candidate.candidate_id) {
           setSelectedCandidate(null);
         }
-        await loadData();
+        triggerNotification('success', `Deleted candidate '${candidate.candidate_name}'`);
       } catch (e) {
-        setCandidates(prev => prev.filter(c => c.candidate_id !== candidate.candidate_id));
-      } finally {
-        setIsProcessing(false);
+        triggerNotification('error', 'Failed deleting candidate');
       }
     }
   };
 
-  const handleNewCandidateUpload = (newCandidate: any) => {
-    if (newCandidate && newCandidate.candidate_name) {
-      loadData();
+  const handleBulkDeleteCandidates = async (candidateIds: string[]) => {
+    try {
+      const res = await bulkDeleteCandidates(candidateIds);
+      const [cData, aData] = await Promise.all([fetchCandidates(), fetchAnalytics()]);
+      setCandidates(cData.candidates);
+      setAnalytics(aData);
+      setSelectedCandidate(null);
+      triggerNotification('success', `Deleted ${candidateIds.length} candidate profiles`);
+    } catch (e) {
+      triggerNotification('error', 'Failed deleting selected candidates');
     }
   };
 
+  const handleClearAllCandidates = async () => {
+    try {
+      const res = await clearAllCandidates();
+      setCandidates([]);
+      const aData = await fetchAnalytics();
+      setAnalytics(aData);
+      setSelectedCandidate(null);
+      triggerNotification('success', 'Cleared all candidate resumes. You can now start inserting fresh resumes!');
+    } catch (e) {
+      triggerNotification('error', 'Failed clearing candidate dataset');
+    }
+  };
+
+  const handleOpenEmail = async (candidate: CandidateEvaluation) => {
+    try {
+      const email = await generateCandidateEmail(candidate.candidate_id);
+      setEmailCandidate({ candidate, email });
+    } catch (e) {
+      triggerNotification('error', 'Failed generating outreach email');
+    }
+  };
+
+  const handleResumeUploaded = async (newCandidates?: CandidateEvaluation[]) => {
+    const [cData, aData] = await Promise.all([
+      fetchCandidates(),
+      fetchAnalytics()
+    ]);
+    setCandidates(cData.candidates);
+    setAnalytics(aData);
+    
+    if (newCandidates && newCandidates.length > 0) {
+      triggerNotification('success', `Successfully batch processed and evaluated ${newCandidates.length} resume(s)!`);
+      setSelectedCandidate(newCandidates[0]);
+    } else {
+      triggerNotification('success', 'Resume processed and evaluated against active JD');
+    }
+  };
+
+  const handleJobDescUpdated = async (activeTitle?: string) => {
+    const [hData, cData, aData] = await Promise.all([
+      fetchHealth(),
+      fetchCandidates(),
+      fetchAnalytics()
+    ]);
+    setHealth(hData);
+    setCandidates(cData.candidates);
+    setAnalytics(aData);
+    triggerNotification('success', `Target Job Description switched to "${activeTitle || hData.active_jd_title}". All candidates re-evaluated!`);
+  };
+
   return (
-    <div className="min-h-screen flex flex-col space-y-6 pb-12">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white">
       
-      {/* Top Header */}
+      {/* Toast Notification */}
+      {notification && (
+        <div className="fixed top-5 right-5 z-50 flex items-center space-x-3 rounded-xl bg-slate-900 border border-slate-700 p-4 shadow-2xl animate-slideDown">
+          {notification.type === 'success' ? (
+            <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="h-5 w-5 text-rose-400 shrink-0" />
+          )}
+          <span className="text-xs font-semibold text-slate-200">{notification.message}</span>
+        </div>
+      )}
+
+      {/* Header Bar */}
       <Header
-        llmProvider={llmProvider}
-        activeJdTitle={activeJdTitle}
+        activeJdTitle={health?.active_jd_title || 'Senior Full Stack Engineer'}
+        llmProvider={health?.llm_provider || 'Google Gemini 1.5 Flash API'}
         onOpenUpload={() => setIsUploadOpen(true)}
-        onOpenConfig={() => setIsConfigOpen(true)}
-        onRefresh={loadData}
-        isProcessing={isProcessing}
+        onOpenJobConfig={() => setIsJobConfigOpen(true)}
+        onReEvaluate={handleReEvaluate}
+        isReEvaluating={reEvaluating}
       />
 
-      {/* Main Content Area */}
-      <main className="mx-auto w-full max-w-7xl px-6 space-y-6 flex-1">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* Executive Overview Analytics */}
-        <OverviewStats analytics={analytics} />
-
-        {/* Candidate Evaluation Grid & Table */}
-        <CandidateTable
-          candidates={candidates}
-          activeJdTitle={activeJdTitle}
-          onSelectCandidate={candidate => setSelectedCandidate(candidate)}
-          onOpenEmail={candidate => setEmailCandidate(candidate)}
-          onDeleteCandidate={handleDeleteCandidate}
+        {/* Analytics Summary */}
+        <OverviewStats 
+          analytics={analytics} 
+          loading={loading} 
         />
+
+        {/* Candidate Evaluation Table */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+              <Sparkles className="h-5 w-5 text-indigo-400" />
+              <span>Autonomous Candidate Evaluation Matrix</span>
+            </h2>
+            <button
+              onClick={loadData}
+              className="flex items-center space-x-1 text-xs text-slate-400 hover:text-white transition"
+              title="Refresh Matrix"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh Matrix</span>
+            </button>
+          </div>
+
+          <CandidateTable
+            candidates={candidates}
+            activeJdTitle={health?.active_jd_title || 'Senior Full Stack Engineer'}
+            onSelectCandidate={setSelectedCandidate}
+            onOpenEmail={handleOpenEmail}
+            onDeleteCandidate={handleDeleteCandidate}
+            onBulkDeleteCandidates={handleBulkDeleteCandidates}
+            onClearAllCandidates={handleClearAllCandidates}
+          />
+        </section>
 
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800/60 py-6 text-center text-xs text-slate-500">
-        <p>TalentFlow Autonomous HR System &copy; 2026 • Enterprise SaaS AI Engine powered by Google Gemini API & LangChain</p>
-      </footer>
-
-      {/* Modals & Drawers */}
+      {/* Candidate Deep-Dive Drawer */}
       <CandidateDrawer
         candidate={selectedCandidate}
-        activeJdTitle={activeJdTitle}
-        activeJdImage={activeJdImage}
+        activeJdImage={health?.active_jd_image}
         onClose={() => setSelectedCandidate(null)}
-        onOpenEmail={candidate => {
-          setSelectedCandidate(null);
-          setEmailCandidate(candidate);
-        }}
+        onOpenEmail={handleOpenEmail}
         onDeleteCandidate={handleDeleteCandidate}
       />
 
-      <JobConfigModal
-        isOpen={isConfigOpen}
-        onClose={() => setIsConfigOpen(false)}
-        onSaveConfig={handleSaveConfig}
-        onJobDescriptionUpdated={(newTitle, newImage) => {
-          setActiveJdTitle(newTitle);
-          if (newImage) setActiveJdImage(newImage);
-          loadData();
-        }}
-        currentProvider={llmProvider}
-      />
-
+      {/* Modals */}
       <ResumeUploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onUploadSuccess={handleNewCandidateUpload}
+        onUploaded={handleResumeUploaded}
+      />
+
+      <JobConfigModal
+        isOpen={isJobConfigOpen}
+        onClose={() => setIsJobConfigOpen(false)}
+        onUpdated={handleJobDescUpdated}
       />
 
       <EmailModal
-        candidate={emailCandidate}
+        isOpen={!!emailCandidate}
+        candidate={emailCandidate?.candidate || null}
+        email={emailCandidate?.email || null}
         onClose={() => setEmailCandidate(null)}
       />
 
