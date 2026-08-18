@@ -143,15 +143,19 @@ def initialize_llm_provider(preferred_provider: str = "auto"):
     if (preferred_provider in ["gemini", "auto"]) and gemini_key and gemini_key != "your_gemini_api_key_here":
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
-            llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
-                google_api_key=gemini_key,
-                temperature=0.1
-            )
-            state.llm = llm
-            state.llm_provider = "Google Gemini (gemini-1.5-flash)"
-            print("✅ Initialized Google Gemini API Provider")
-            return
+            for m in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"]:
+                try:
+                    llm = ChatGoogleGenerativeAI(
+                        model=m,
+                        google_api_key=gemini_key,
+                        temperature=0.1
+                    )
+                    state.llm = llm
+                    state.llm_provider = f"Google Gemini ({m})"
+                    print(f"✅ Initialized Google Gemini Provider ({m})")
+                    return
+                except Exception as me:
+                    continue
         except Exception as e:
             print(f"⚠️ Gemini init fallback: {e}")
 
