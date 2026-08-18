@@ -1,6 +1,6 @@
 import { CandidateEvaluation, SystemAnalytics, HealthResponse, CandidateEmail, PresetJD } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export const MOCK_CANDIDATES: CandidateEvaluation[] = [
   {
