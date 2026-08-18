@@ -5,10 +5,20 @@ import { SystemAnalytics } from '../types';
 import { Users, Clock, DollarSign, Award, CheckCircle2, HelpCircle, XCircle } from 'lucide-react';
 
 interface OverviewStatsProps {
-  analytics: SystemAnalytics;
+  analytics: SystemAnalytics | null;
+  loading?: boolean;
 }
 
-export const OverviewStats: React.FC<OverviewStatsProps> = ({ analytics }) => {
+export const OverviewStats: React.FC<OverviewStatsProps> = ({ analytics, loading }) => {
+  if (loading || !analytics) {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-pulse">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="h-28 rounded-2xl bg-slate-900/60 border border-slate-800" />
+        ))}
+      </div>
+    );
+  }
   const { decision_breakdown, total_candidates, average_score, roi_analytics } = analytics;
   
   const advanceCount = decision_breakdown?.ADVANCE || 0;
