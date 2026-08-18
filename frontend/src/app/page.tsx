@@ -249,12 +249,12 @@ export default function Home() {
         currentProvider={health?.llm_provider || 'Google Gemini 1.5 Flash API'}
       />
 
-      <EmailModal
-        isOpen={!!emailCandidate}
-        candidate={emailCandidate?.candidate || null}
-        email={emailCandidate?.email || null}
-        onClose={() => setEmailCandidate(null)}
-      />
+      {emailCandidate && (
+        <EmailModal
+          candidate={emailCandidate.candidate}
+          onClose={() => setEmailCandidate(null)}
+        />
+      )}
 
     </div>
   );
