@@ -238,13 +238,15 @@ export default function Home() {
       <ResumeUploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onUploaded={handleResumeUploaded}
+        onUploadSuccess={handleResumeUploaded}
       />
 
       <JobConfigModal
         isOpen={isJobConfigOpen}
         onClose={() => setIsJobConfigOpen(false)}
-        onUpdated={handleJobDescUpdated}
+        onSaveConfig={async () => {}}
+        onJobDescriptionUpdated={handleJobDescUpdated}
+        currentProvider={health?.llm_provider || 'Google Gemini 1.5 Flash API'}
       />
 
       <EmailModal
