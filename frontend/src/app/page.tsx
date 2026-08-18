@@ -182,9 +182,9 @@ export default function Home() {
         activeJdTitle={health?.active_jd_title || 'Senior Full Stack Engineer'}
         llmProvider={health?.llm_provider || 'Google Gemini 1.5 Flash API'}
         onOpenUpload={() => setIsUploadOpen(true)}
-        onOpenJobConfig={() => setIsJobConfigOpen(true)}
-        onReEvaluate={handleReEvaluate}
-        isReEvaluating={reEvaluating}
+        onOpenConfig={() => setIsJobConfigOpen(true)}
+        onRefresh={handleReEvaluate}
+        isProcessing={reEvaluating}
       />
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
