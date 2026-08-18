@@ -501,25 +501,39 @@ export async function fetchAnalytics(): Promise<SystemAnalytics> {
     const res = await fetch(`${API_BASE}/analytics`);
     if (res.ok) return await res.json();
   } catch (e) {
-    console.warn('API offline, returning mock analytics');
+    console.warn('API offline, computing dynamic analytics');
   }
+
+  const total = MOCK_CANDIDATES.length;
+  const advance = MOCK_CANDIDATES.filter(c => c.decision === 'ADVANCE').length;
+  const maybe = MOCK_CANDIDATES.filter(c => c.decision === 'MAYBE').length;
+  const reject = MOCK_CANDIDATES.filter(c => c.decision === 'REJECT').length;
+  const avgScore = total > 0 ? parseFloat((MOCK_CANDIDATES.reduce((acc, c) => acc + c.total_score, 0) / total).toFixed(2)) : 0.0;
+
+  const manualHrs = parseFloat(((total * 21.0) / 60.0).toFixed(2));
+  const aiHrs = parseFloat((total * 0.0005).toFixed(4));
+  const hoursSaved = parseFloat(Math.max(0, manualHrs - aiHrs).toFixed(1));
+  const costSavings = parseFloat((hoursSaved * 80.0).toFixed(2));
+  const effGain = total > 0 ? parseFloat((((manualHrs - aiHrs) / manualHrs) * 100).toFixed(1)) : 0.0;
+  const qualifyingHires = Math.max(1, advance + maybe);
+
   return {
-    total_candidates: MOCK_CANDIDATES.length,
+    total_candidates: total,
     decision_breakdown: {
-      ADVANCE: MOCK_CANDIDATES.filter(c => c.decision === 'ADVANCE').length,
-      MAYBE: MOCK_CANDIDATES.filter(c => c.decision === 'MAYBE').length,
-      REJECT: MOCK_CANDIDATES.filter(c => c.decision === 'REJECT').length
+      ADVANCE: advance,
+      MAYBE: maybe,
+      REJECT: reject
     },
-    average_score: MOCK_CANDIDATES.length > 0 ? parseFloat((MOCK_CANDIDATES.reduce((acc, c) => acc + c.total_score, 0) / MOCK_CANDIDATES.length).toFixed(2)) : 0,
-    total_processing_time_sec: MOCK_CANDIDATES.length * 1.5,
-    avg_time_per_candidate_sec: 1.5,
+    average_score: avgScore,
+    total_processing_time_sec: total * 1.5,
+    avg_time_per_candidate_sec: total > 0 ? 1.5 : 0.0,
     roi_analytics: {
-      manual_hours_required: parseFloat((MOCK_CANDIDATES.length * 0.35).toFixed(2)),
-      ai_hours_spent: 0.005,
-      hours_saved: parseFloat((MOCK_CANDIDATES.length * 0.35).toFixed(2)),
-      cost_savings_usd: MOCK_CANDIDATES.length * 28.00,
-      efficiency_gain_percentage: 99.8,
-      savings_per_hire: 28.00
+      manual_hours_required: manualHrs,
+      ai_hours_spent: aiHrs,
+      hours_saved: hoursSaved,
+      cost_savings_usd: costSavings,
+      efficiency_gain_percentage: effGain,
+      savings_per_hire: total > 0 ? parseFloat((costSavings / qualifyingHires).toFixed(2)) : 0.0
     }
   };
 }

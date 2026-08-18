@@ -211,7 +211,21 @@ Respond strictly in valid JSON format:
     def get_summary_stats(self) -> Dict[str, Any]:
         """Generate aggregate analytics across evaluated decisions."""
         if not self.decisions:
-            return {"total_evaluated": 0}
+            return {
+                "total_candidates": 0,
+                "decision_breakdown": {"ADVANCE": 0, "MAYBE": 0, "REJECT": 0},
+                "average_score": 0.0,
+                "total_processing_time_sec": 0.0,
+                "avg_time_per_candidate_sec": 0.0,
+                "roi_analytics": {
+                    "manual_hours_required": 0.0,
+                    "ai_hours_spent": 0.0,
+                    "hours_saved": 0.0,
+                    "cost_savings_usd": 0.0,
+                    "efficiency_gain_percentage": 0.0,
+                    "savings_per_hire": 0.0
+                }
+            }
 
         counts = {"ADVANCE": 0, "MAYBE": 0, "REJECT": 0}
         total_score = 0.0
@@ -222,16 +236,17 @@ Respond strictly in valid JSON format:
             total_score += d.get("total_score", 0.0)
 
         total_candidates = len(self.decisions)
-        avg_score = round(total_score / total_candidates, 2)
+        avg_score = round(total_score / total_candidates, 2) if total_candidates > 0 else 0.0
         total_time = round(sum(self.processing_times), 2)
         avg_time = round(total_time / total_candidates, 2) if total_candidates > 0 else 0.0
 
-        # ROI Metrics
-        manual_hrs = (total_candidates * 21.0) / 60.0  # 6 min screening + 15 min decision = 21 mins manual
-        ai_hrs = total_time / 3600.0
-        time_saved_hrs = round(manual_hrs - ai_hrs, 1)
+        # Dynamic ROI Metrics based strictly on evaluated candidate data
+        manual_hrs = round((total_candidates * 21.0) / 60.0, 2)
+        ai_hrs = round(total_time / 3600.0, 4)
+        time_saved_hrs = round(max(0.0, manual_hrs - ai_hrs), 1)
         cost_saved_usd = round(time_saved_hrs * 80.0, 2)
         efficiency_gain_pct = round(((manual_hrs - ai_hrs) / manual_hrs) * 100, 1) if manual_hrs > 0 else 0.0
+        qualifying_hires = max(1, counts["ADVANCE"] + counts["MAYBE"])
 
         return {
             "total_candidates": total_candidates,
@@ -240,11 +255,11 @@ Respond strictly in valid JSON format:
             "total_processing_time_sec": total_time,
             "avg_time_per_candidate_sec": avg_time,
             "roi_analytics": {
-                "manual_hours_required": round(manual_hrs, 1),
-                "ai_hours_spent": round(ai_hrs, 3),
+                "manual_hours_required": manual_hrs,
+                "ai_hours_spent": ai_hrs,
                 "hours_saved": time_saved_hrs,
                 "cost_savings_usd": cost_saved_usd,
                 "efficiency_gain_percentage": efficiency_gain_pct,
-                "savings_per_hire": round(cost_saved_usd / max(1, counts["ADVANCE"] + counts["MAYBE"]), 2)
+                "savings_per_hire": round(cost_saved_usd / qualifying_hires, 2)
             }
         }

@@ -184,6 +184,7 @@ export default function Home() {
         onOpenUpload={() => setIsUploadOpen(true)}
         onOpenConfig={() => setIsJobConfigOpen(true)}
         onRefresh={handleReEvaluate}
+        onResetAllData={handleClearAllCandidates}
         isProcessing={reEvaluating}
       />
 

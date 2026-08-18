@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Bot, Sparkles, Sliders, Upload, RefreshCw, ShieldCheck, Target } from 'lucide-react';
+import { Bot, Sparkles, Sliders, Upload, RefreshCw, ShieldCheck, Target, RotateCcw } from 'lucide-react';
 
 interface HeaderProps {
   llmProvider: string;
@@ -9,6 +9,7 @@ interface HeaderProps {
   onOpenUpload: () => void;
   onOpenConfig: () => void;
   onRefresh: () => void;
+  onResetAllData?: () => void;
   isProcessing: boolean;
 }
 
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenUpload,
   onOpenConfig,
   onRefresh,
+  onResetAllData,
   isProcessing
 }) => {
   return (
@@ -56,7 +58,22 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Actions Toolbar */}
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center space-x-2 border-slate-800">
+          {onResetAllData && (
+            <button
+              onClick={() => {
+                if (confirm('Reset system data to empty state? All current candidate resumes and metrics will be set to 0 so your manager can test fresh data ingestion.')) {
+                  onResetAllData();
+                }
+              }}
+              className="flex items-center space-x-1.5 rounded-xl bg-rose-950/40 px-3 py-2 text-xs font-medium text-rose-300 border border-rose-500/30 hover:bg-rose-900/60 transition duration-200"
+              title="Reset system data to 0 to test fresh resume ingestion"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden md:inline">Reset / Start Fresh</span>
+            </button>
+          )}
+
           <button
             onClick={onRefresh}
             disabled={isProcessing}
