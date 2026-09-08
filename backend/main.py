@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import re
 from pathlib import Path
 
 # Add project root to sys.path
@@ -128,6 +129,7 @@ class AppState:
     llm_provider = "none"
     active_jd_title = "Senior Full Stack Engineer - AI & Web Applications"
     active_jd_image = "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80"
+    active_jd_stream = "Auto-detected"
     resume_agent: ResumeIntelligenceAgent = None
     decision_agent: DecisionEngineAgent = None
     communication_agent: CommunicationAgent = None
@@ -135,6 +137,23 @@ class AppState:
     cached_evaluations: List[Dict[str, Any]] = []
 
 state = AppState()
+
+def infer_job_metadata(content: str) -> Dict[str, str]:
+    """Infer display metadata from the complete JD without requiring fixed role presets."""
+    text = content.strip()
+    heading = next((line.lstrip("#").strip() for line in text.splitlines() if line.strip().startswith("#")), "")
+    title = heading or next((line.strip() for line in text.splitlines() if line.strip()), "Target Role")
+    title = re.sub(r"^(job description|role|position)\s*[:|-]\s*", "", title, flags=re.IGNORECASE).strip()
+    keyword_groups = {
+        "Cloud / DevOps": ("aws", "azure", "gcp", "kubernetes", "terraform", "devops", "sre", "ci/cd"),
+        "Data / AI Engineering": ("snowflake", "etl", "data warehouse", "spark", "pyspark", "machine learning", "data engineer"),
+        "Frontend Engineering": ("react", "next.js", "frontend", "front-end", "vue", "angular", "ui/ux"),
+        "Backend Engineering": ("api", "backend", "back-end", "fastapi", "django", "microservices"),
+        "Full Stack / AI": ("full stack", "full-stack", "langchain", "llm", "agent workflow"),
+    }
+    normalized = text.lower()
+    stream = max(keyword_groups, key=lambda name: sum(normalized.count(word) for word in keyword_groups[name])) if text else "Auto-detected"
+    return {"title": title[:160], "stream": stream}
 
 def initialize_llm_provider(preferred_provider: str = "auto"):
     gemini_key = os.getenv("GEMINI_API_KEY", settings.GEMINI_API_KEY)
@@ -196,6 +215,9 @@ def initialize_llm_provider(preferred_provider: str = "auto"):
 def startup_event():
     initialize_llm_provider(settings.DEFAULT_LLM_PROVIDER)
     job_desc = load_job_description()
+    metadata = infer_job_metadata(job_desc)
+    state.active_jd_title = metadata["title"]
+    state.active_jd_stream = metadata["stream"]
     
     state.resume_agent = ResumeIntelligenceAgent(llm=state.llm)
     state.decision_agent = DecisionEngineAgent(
@@ -247,6 +269,7 @@ def health_check():
         "llm_active": state.llm is not None,
         "active_jd_title": state.active_jd_title,
         "active_jd_image": state.active_jd_image,
+        "active_jd_stream": state.active_jd_stream,
         "total_candidates": len(state.cached_candidates),
         "thresholds": {
             "advance": state.decision_agent.advance_threshold,
@@ -260,6 +283,7 @@ def get_job_desc():
         "content": load_job_description(),
         "active_title": state.active_jd_title,
         "active_image": state.active_jd_image,
+        "active_stream": state.active_jd_stream,
         "presets": PRESET_JOB_DESCRIPTIONS
     }
 
@@ -277,9 +301,13 @@ def update_job_desc(req: JobDescRequest):
         if req.image_url:
             state.active_jd_image = req.image_url
     else:
-        first_line = content_to_save.strip().split("\n")[0].replace("#", "").strip()
-        if first_line:
-            state.active_jd_title = first_line
+        metadata = infer_job_metadata(content_to_save)
+        state.active_jd_title = metadata["title"]
+
+    metadata = infer_job_metadata(content_to_save)
+    state.active_jd_stream = metadata["stream"]
+    if not req.preset_key and not req.custom_title:
+        state.active_jd_title = metadata["title"]
 
     if req.image_url:
         state.active_jd_image = req.image_url
@@ -292,6 +320,7 @@ def update_job_desc(req: JobDescRequest):
             "content": content_to_save,
             "active_title": state.active_jd_title,
             "active_image": state.active_jd_image,
+            "active_stream": state.active_jd_stream,
             "evaluated_candidates": state.cached_evaluations
         }
     raise HTTPException(status_code=500, detail="Failed to save job description")
@@ -302,6 +331,7 @@ def get_config():
         "current_provider": state.llm_provider,
         "advance_threshold": state.decision_agent.advance_threshold,
         "maybe_threshold": state.decision_agent.maybe_threshold,
+        "active_stream": state.active_jd_stream,
         "gemini_key_configured": bool(os.getenv("GEMINI_API_KEY")) and os.getenv("GEMINI_API_KEY") != "your_gemini_api_key_here"
     }
 
@@ -343,12 +373,19 @@ def clear_all_candidates():
     """Clear all candidates from state to start fresh."""
     state.cached_candidates.clear()
     state.cached_evaluations.clear()
+    state.decision_agent.decisions.clear()
+    state.decision_agent.processing_times.clear()
+    state.decision_agent.set_thresholds(settings.ADVANCE_THRESHOLD, settings.MAYBE_THRESHOLD)
     return {
         "status": "cleared",
         "message": "Cleared all candidate resumes from system memory.",
         "candidates": [],
         "total": 0,
-        "summary": state.decision_agent.get_summary_stats()
+        "summary": state.decision_agent.get_summary_stats(),
+        "thresholds": {
+            "advance": state.decision_agent.advance_threshold,
+            "maybe": state.decision_agent.maybe_threshold
+        }
     }
 
 @app.post("/api/candidates/bulk-delete")

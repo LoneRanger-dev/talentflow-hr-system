@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { fetchJobDescription, updateJobDescription } from '../services/api';
-import { X, Sliders, Key, Save, Check, FileText, Sparkles, Layers, Image as ImageIcon, RotateCcw, Link } from 'lucide-react';
+import { fetchConfig, fetchJobDescription, updateJobDescription } from '../services/api';
+import { X, Sliders, Key, Save, Check, Sparkles, Image as ImageIcon } from 'lucide-react';
 
 interface JobConfigModalProps {
   isOpen: boolean;
@@ -25,6 +25,7 @@ export const JobConfigModal: React.FC<JobConfigModalProps> = ({
   const [imageUrl, setImageUrl] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<string>('fullstack');
   const [presets, setPresets] = useState<Record<string, any>>({});
+  const [detectedStream, setDetectedStream] = useState('Auto-detected from job description');
   const [geminiKey, setGeminiKey] = useState('');
   const [provider, setProvider] = useState('gemini');
   const [advanceThreshold, setAdvanceThreshold] = useState(7.0);
@@ -40,8 +41,15 @@ export const JobConfigModal: React.FC<JobConfigModalProps> = ({
         if (data.content) setJdContent(data.content);
         if (data.active_title) setCustomTitle(data.active_title);
         if (data.active_image) setImageUrl(data.active_image);
+        if (data.active_stream) setDetectedStream(data.active_stream);
         if (data.presets) setPresets(data.presets);
       });
+      fetchConfig().then(data => {
+        const providerName = data.current_provider.toLowerCase();
+        setProvider(providerName.includes('gemini') ? 'gemini' : providerName.includes('openai') ? 'openai' : providerName.includes('ollama') ? 'ollama' : 'auto');
+        setAdvanceThreshold(data.advance_threshold);
+        setMaybeThreshold(data.maybe_threshold);
+      }).catch(() => undefined);
     }
   }, [isOpen]);
 
@@ -77,7 +85,7 @@ export const JobConfigModal: React.FC<JobConfigModalProps> = ({
       // 1. Update JD & re-evaluate candidates against selected/custom JD
       const jdResult = await updateJobDescription(
         jdContent, 
-        selectedPreset === 'custom' ? undefined : selectedPreset, 
+        undefined,
         customTitle,
         imageUrl
       );
@@ -142,75 +150,13 @@ export const JobConfigModal: React.FC<JobConfigModalProps> = ({
         {activeTab === 'jd' ? (
           <div className="space-y-4 text-xs">
             
-            {/* Preset Role Selector Buttons */}
+            {/* Automatic stream detection */}
             <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="font-semibold text-slate-300">1-Click Select Target Tech Stream / Project Role</label>
-                <button
-                  type="button"
-                  onClick={handleUnselectPreset}
-                  className="flex items-center space-x-1 text-[10px] text-amber-400 hover:text-amber-300 transition font-medium"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  <span>Unselect Preset (Enter Custom Role)</span>
-                </button>
+              <label className="font-semibold text-slate-300">Target technology stream</label>
+              <div className="mt-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3.5 py-3 text-indigo-200">
+                {detectedStream}
               </div>
-
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset('fullstack')}
-                  className={`rounded-xl p-3 text-left border transition ${
-                    selectedPreset === 'fullstack'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-glow-primary'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="font-bold text-xs text-white">Full Stack AI</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Python, React, LangChain</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset('data_engineer')}
-                  className={`rounded-xl p-3 text-left border transition ${
-                    selectedPreset === 'data_engineer'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-glow-primary'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="font-bold text-xs text-white">Data & AI (Snowflake)</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Snowflake, SQL, Python</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset('devops')}
-                  className={`rounded-xl p-3 text-left border transition ${
-                    selectedPreset === 'devops'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-glow-primary'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="font-bold text-xs text-white">DevOps & Cloud</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">K8s, Docker, Terraform</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset('frontend')}
-                  className={`rounded-xl p-3 text-left border transition ${
-                    selectedPreset === 'frontend'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-glow-primary'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="font-bold text-xs text-white">Frontend Lead</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">React, Next.js, Tailwind</div>
-                </button>
-
-              </div>
+              <p className="mt-1.5 text-[10px] text-slate-500">This is inferred from the complete job description when you apply it.</p>
             </div>
 
             {/* Custom Target Role Title Input */}
@@ -281,11 +227,12 @@ export const JobConfigModal: React.FC<JobConfigModalProps> = ({
                 <span className="text-[10px] text-indigo-400 font-medium">All candidates will be re-evaluated against this JD</span>
               </div>
               <textarea
-                rows={7}
+                rows={18}
                 value={jdContent}
                 onChange={e => {
                   setJdContent(e.target.value);
                   setSelectedPreset('custom');
+                  setCustomTitle('');
                 }}
                 className="w-full rounded-xl bg-slate-900 p-3.5 text-slate-200 border border-slate-800 focus:border-indigo-500 focus:outline-none font-mono text-[11px] leading-relaxed"
               />

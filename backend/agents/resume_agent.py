@@ -74,6 +74,7 @@ Return ONLY a valid JSON object matching this structure exactly (no markdown for
         self.analysis_count += 1
 
         extracted_info["candidate_id"] = candidate_id
+        extracted_info["resume_text"] = resume_content
         extracted_info["processed_at"] = datetime.now().isoformat()
         extracted_info["processing_time"] = processing_time
         

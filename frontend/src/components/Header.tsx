@@ -1,10 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Bot, Sparkles, Sliders, Upload, RefreshCw, ShieldCheck, Target, RotateCcw } from 'lucide-react';
+import { Bot, Sparkles, Sliders, Upload, RefreshCw, Target, RotateCcw } from 'lucide-react';
 
 interface HeaderProps {
-  llmProvider: string;
   activeJdTitle: string;
   onOpenUpload: () => void;
   onOpenConfig: () => void;
@@ -14,7 +13,6 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  llmProvider,
   activeJdTitle,
   onOpenUpload,
   onOpenConfig,
@@ -50,11 +48,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-white font-semibold line-clamp-1 max-w-[200px]">{activeJdTitle || 'Full Stack Engineer'}</span>
           </div>
 
-          <div className="flex items-center space-x-2 rounded-xl bg-slate-900/80 px-3 py-1.5 border border-slate-800">
-            <ShieldCheck className="h-4 w-4 text-emerald-400" />
-            <span className="text-slate-400">Model:</span>
-            <span className="text-indigo-300 font-semibold">{llmProvider}</span>
-          </div>
         </div>
 
         {/* Actions Toolbar */}

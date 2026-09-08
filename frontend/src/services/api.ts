@@ -283,7 +283,7 @@ export async function fetchCandidates(): Promise<{ candidates: CandidateEvaluati
   };
 }
 
-export async function fetchJobDescription(): Promise<{ content: string; active_title?: string; active_image?: string; presets?: Record<string, PresetJD> }> {
+export async function fetchJobDescription(): Promise<{ content: string; active_title?: string; active_image?: string; active_stream?: string; presets?: Record<string, PresetJD> }> {
   try {
     const res = await fetch(`${API_BASE}/job-description`);
     if (res.ok) return await res.json();
@@ -295,6 +295,12 @@ export async function fetchJobDescription(): Promise<{ content: string; active_t
     active_title: 'Senior Full Stack Engineer - AI & Web Applications',
     active_image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80'
   };
+}
+
+export async function fetchConfig(): Promise<{ current_provider: string; advance_threshold: number; maybe_threshold: number }> {
+  const res = await fetch(`${API_BASE}/config`);
+  if (!res.ok) throw new Error('Failed to load analysis settings');
+  return await res.json();
 }
 
 export async function updateJobDescription(content: string, presetKey?: string, customTitle?: string, imageUrl?: string): Promise<any> {
@@ -314,6 +320,21 @@ export async function updateJobDescription(content: string, presetKey?: string, 
     console.warn('API offline, updating client mock job description state');
   }
   return { status: 'updated', content, active_title: customTitle || presetKey || 'Target Project Role', active_image: imageUrl };
+}
+
+export async function updateConfig(geminiKey: string, provider: string, advanceThreshold: number, maybeThreshold: number): Promise<any> {
+  const res = await fetch(`${API_BASE}/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      gemini_key: geminiKey || undefined,
+      provider,
+      advance_threshold: advanceThreshold,
+      maybe_threshold: maybeThreshold
+    })
+  });
+  if (!res.ok) throw new Error('Failed to update analysis settings');
+  return await res.json();
 }
 
 export async function deleteCandidate(candidateId: string): Promise<any> {
@@ -393,10 +414,10 @@ function createClientEvaluatedCandidate(filename: string, candidateName?: string
     current_title: 'Software & Data Developer',
     experience_years: '4+',
     key_skills: foundSkills,
-    total_score: 8.8,
-    decision: 'ADVANCE',
-    next_action: 'Schedule technical interview',
-    priority: 'High',
+    total_score: 0,
+    decision: 'REJECT',
+    next_action: 'Backend analysis required',
+    priority: 'Low',
     evaluated_at: new Date().toISOString(),
     strengths: [
       `Extracted resume details for ${name} matching key technical skills (${foundSkills.slice(0, 3).join(', ')})`,
@@ -404,8 +425,8 @@ function createClientEvaluatedCandidate(filename: string, candidateName?: string
     ],
     concerns: ['Verify production deployment scale in technical interview'],
     interview_focus: ['System design & technical architecture', 'Team collaboration'],
-    reasoning: `Extracted and evaluated candidate ${name} against target role requirement. Candidate demonstrates strong skill match (${foundSkills.join(', ')}) with a total score of 8.8/10.`,
-    detailed_scores: { technical_skills: 2.9, experience: 2.7, education: 1.7, overall_fit: 1.5 },
+    reasoning: `Resume text was captured locally, but the backend analysis service is unavailable. No hiring score was fabricated for ${name}.`,
+    detailed_scores: { technical_skills: 0, experience: 0, education: 0, overall_fit: 0 },
     processing_time: 1.25,
     is_new: true
   };

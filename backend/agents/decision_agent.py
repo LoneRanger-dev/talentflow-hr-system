@@ -37,33 +37,38 @@ class DecisionEngineAgent:
         experience = candidate_data.get("experience_years", "Not specified")
         current_title = candidate_data.get("current_title", "Software Engineer")
         education = candidate_data.get("education", "Not specified")
+        resume_text = candidate_data.get("resume_text", "")
 
         prompt = f"""You are an enterprise HR Decision Agent. Evaluate the candidate against the Job Description.
 
 JOB DESCRIPTION:
 {self.job_description}
 
-CANDIDATE PROFILE:
+CANDIDATE EXTRACTED PROFILE:
 Name: {candidate_name}
 Title: {current_title}
 Experience: {experience}
 Education: {education}
 Key Skills: {skills_str}
 
-SCORING RULES (Total Score 0.0 - 10.0):
-1. Technical Skills Match (0.0 to 3.0 pts)
-2. Experience Level & Relevance (0.0 to 3.0 pts)
-3. Education & Qualifications (0.0 to 2.0 pts)
-4. Overall Fit & Potential (0.0 to 2.0 pts)
+FULL RESUME:
+{resume_text}
+
+SCORING RULES (score only evidence in the JD and resume; do not use generic software-engineering assumptions):
+1. Technical Skills Match (0.0 to 3.5 pts): required and preferred technologies, domain tools, and responsibilities.
+2. Experience Level & Relevance (0.0 to 2.5 pts): years, seniority, and directly comparable work.
+3. Education & Qualifications (0.0 to 1.5 pts): only qualifications relevant to this JD.
+4. Overall Fit & Potential (0.0 to 2.5 pts): role, domain, responsibility, and project alignment.
+The total_score MUST equal the sum of the four component scores, rounded to one decimal. Missing mandatory requirements must materially reduce the score. A candidate with a different technology domain must not receive a high score merely for having general engineering experience.
 
 Respond strictly in valid JSON format:
 {{
   "candidate_name": "{candidate_name}",
   "technical_skills_score": 2.5,
-  "experience_score": 2.5,
-  "education_score": 1.5,
+    "experience_score": 2.0,
+    "education_score": 1.0,
   "overall_fit_score": 1.5,
-  "total_score": 8.0,
+    "total_score": 7.0,
   "strengths": ["Key strength 1", "Key strength 2"],
   "concerns": ["Area of concern or weakness"],
   "interview_focus": ["Topic to assess during technical interview"],
@@ -93,7 +98,21 @@ Respond strictly in valid JSON format:
             scoring_data = self._calculate_fallback_score(candidate_data)
 
         # Make autonomous decision based on thresholds
-        total_score = float(scoring_data.get("total_score", 5.0))
+        component_limits = {
+            "technical_skills_score": 3.5,
+            "experience_score": 2.5,
+            "education_score": 1.5,
+            "overall_fit_score": 2.5,
+        }
+        component_scores = {}
+        for name, limit in component_limits.items():
+            try:
+                value = float(scoring_data.get(name, 0.0))
+            except (TypeError, ValueError):
+                value = 0.0
+            component_scores[name] = max(0.0, min(limit, value))
+        # The model explains the evidence, but the application owns the final arithmetic.
+        total_score = sum(component_scores.values())
         total_score = max(0.0, min(10.0, round(total_score, 1)))
 
         if total_score >= self.advance_threshold:
@@ -129,10 +148,10 @@ Respond strictly in valid JSON format:
             "interview_focus": scoring_data.get("interview_focus", ["System design and API architecture"]),
             "reasoning": scoring_data.get("reasoning", f"Evaluated score {total_score}/10 based on skills alignment and experience."),
             "detailed_scores": {
-                "technical_skills": round(float(scoring_data.get("technical_skills_score", total_score * 0.3)), 1),
-                "experience": round(float(scoring_data.get("experience_score", total_score * 0.3)), 1),
-                "education": round(float(scoring_data.get("education_score", total_score * 0.2)), 1),
-                "overall_fit": round(float(scoring_data.get("overall_fit_score", total_score * 0.2)), 1)
+                "technical_skills": round(component_scores["technical_skills_score"], 1),
+                "experience": round(component_scores["experience_score"], 1),
+                "education": round(component_scores["education_score"], 1),
+                "overall_fit": round(component_scores["overall_fit_score"], 1)
             },
             "processing_time": processing_time
         }
@@ -143,13 +162,19 @@ Respond strictly in valid JSON format:
     def _calculate_fallback_score(self, candidate_data: Dict[str, Any]) -> Dict[str, Any]:
         """Heuristic skill-matching score generator for offline or fallback operation."""
         skills = [s.lower() for s in candidate_data.get("key_skills", [])]
+        resume_text = str(candidate_data.get("resume_text", "")).lower()
         title = candidate_data.get("current_title", "").lower()
         exp_raw = str(candidate_data.get("experience_years", "0"))
         
-        # Skill points calculation
-        high_val_skills = ["python", "fastapi", "react", "next.js", "typescript", "langchain", "postgresql", "redis"]
-        matched_skills = [s for s in skills if any(h in s for h in high_val_skills)]
-        tech_score = min(3.0, round(len(matched_skills) * 0.6, 1))
+        # Derive matching terms from this JD so unrelated technology domains score low.
+        jd_terms = re.findall(
+            r"\b(?:python|java|javascript|typescript|react|next\.js|node\.js|fastapi|django|flask|sql|postgresql|mysql|mongodb|redis|docker|kubernetes|aws|azure|gcp|terraform|snowflake|spark|pyspark|etl|langchain|llm|graphql|linux|go|php|\.net)\b",
+            self.job_description.lower()
+        )
+        required_terms = list(dict.fromkeys(jd_terms))
+        candidate_text = f"{' '.join(skills)} {resume_text}"
+        matched_skills = [term for term in required_terms if term in candidate_text]
+        tech_score = round(3.5 * len(matched_skills) / max(1, len(required_terms)), 1)
 
         # Experience score
         exp_years = 3.0
@@ -168,7 +193,8 @@ Respond strictly in valid JSON format:
 
         # Education & Seniority
         edu_score = 1.5 if "senior" in title or "lead" in title or "m.s." in str(candidate_data.get("education", "")).lower() else 1.2
-        fit_score = 1.5 if "full stack" in title or "senior" in title else 1.0
+        jd_title_terms = [term for term in required_terms if term in title]
+        fit_score = round(2.5 * len(jd_title_terms) / max(1, min(4, len(required_terms))), 1)
 
         total = round(tech_score + exp_score + edu_score + fit_score, 1)
 
@@ -183,8 +209,9 @@ Respond strictly in valid JSON format:
         concerns = []
         if exp_years < 3:
             concerns.append("Lower total years of experience than ideal target requirement")
-        if "langchain" not in skills and "ai" not in title:
-            concerns.append("Limited explicit AI agent framework exposure listed")
+        missing_terms = [term for term in required_terms[:5] if term not in candidate_text]
+        if missing_terms:
+            concerns.append(f"Missing or unverified JD requirements: {', '.join(missing_terms[:3])}")
         if not concerns:
             concerns.append("Verify direct experience in enterprise CI/CD environments")
 

@@ -16,6 +16,7 @@ import {
   clearAllCandidates,
   generateCandidateEmail 
 } from '../services/api';
+import { updateConfig } from '../services/api';
 
 import { Header } from '../components/Header';
 import { OverviewStats } from '../components/OverviewStats';
@@ -116,8 +117,9 @@ export default function Home() {
     try {
       const res = await clearAllCandidates();
       setCandidates([]);
-      const aData = await fetchAnalytics();
+      const [aData, hData] = await Promise.all([fetchAnalytics(), fetchHealth()]);
       setAnalytics(aData);
+      setHealth(hData);
       setSelectedCandidate(null);
       triggerNotification('success', 'Cleared all candidate resumes. You can now start inserting fresh resumes!');
     } catch (e) {
@@ -180,7 +182,6 @@ export default function Home() {
       {/* Header Bar */}
       <Header
         activeJdTitle={health?.active_jd_title || 'Senior Full Stack Engineer'}
-        llmProvider={health?.llm_provider || 'Google Gemini 1.5 Flash API'}
         onOpenUpload={() => setIsUploadOpen(true)}
         onOpenConfig={() => setIsJobConfigOpen(true)}
         onRefresh={handleReEvaluate}
@@ -245,7 +246,9 @@ export default function Home() {
       <JobConfigModal
         isOpen={isJobConfigOpen}
         onClose={() => setIsJobConfigOpen(false)}
-        onSaveConfig={async () => {}}
+        onSaveConfig={async (geminiKey, provider, advanceThreshold, maybeThreshold) => {
+          await updateConfig(geminiKey, provider, advanceThreshold, maybeThreshold);
+        }}
         onJobDescriptionUpdated={handleJobDescUpdated}
         currentProvider={health?.llm_provider || 'Google Gemini 1.5 Flash API'}
       />
