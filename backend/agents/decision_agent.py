@@ -57,7 +57,7 @@ FULL RESUME:
 SCORING RULES (score only evidence in the JD and resume; do not use generic software-engineering assumptions):
 1. Technical Skills Match (0.0 to 5.0 pts): required and preferred technologies, domain tools, and responsibilities. This is the primary filter for the role.
 2. Experience Level & Relevance (0.0 to 2.0 pts): years, seniority, and directly comparable work.
-3. Education & Qualifications (0.0 to 1.5 pts): award the full 1.5 points for any clearly completed regular degree, regardless of academic stream, specialization, distinction, or ordinary pass. Do not reduce this score because the degree is unrelated to the JD. If education is missing, incomplete, unverifiable, or explicitly non-regular, record that as a concern for HR review rather than silently changing the score.
+3. Education & Qualifications (0.0 to 1.5 pts): award the full 1.5 points for any clearly completed regular degree, regardless of academic stream, specialization, distinction, or ordinary pass. Do not reduce this score because the degree is unrelated to the JD. If the JD explicitly requires or strongly prefers a relevant external certification and the resume does not show one, deduct exactly 0.3 points from this category. If the JD has no relevant certification requirement, do not deduct anything. If education is missing, incomplete, unverifiable, or explicitly non-regular, record that as a concern for HR review rather than silently changing the score.
 4. Overall Fit & Potential (0.0 to 1.5 pts): role, domain, responsibility, and project alignment.
 The total_score MUST equal the sum of the four component scores, rounded to one decimal. Missing mandatory requirements must materially reduce the score. A candidate with a different technology domain must not receive a high score merely for having general engineering experience.
 
@@ -125,6 +125,9 @@ Respond strictly in valid JSON format:
         ))
         if has_completed_degree:
             component_scores["education_score"] = 1.5
+        certification_gap = self._certification_gap(candidate_data)
+        if certification_gap and has_completed_degree:
+            component_scores["education_score"] = 1.2
         component_scores["overall_fit_score"] = max(
             component_scores["overall_fit_score"],
             self._minimum_fit_score(component_scores),
@@ -215,7 +218,10 @@ Respond strictly in valid JSON format:
         # Education is a qualification gate, not a relevance multiplier.
         education_text = str(candidate_data.get("education", ""))
         degree_present = bool(re.search(r"\b(?:b\.?s\.?|b\.?a\.?|bachelor|m\.?s\.?|m\.?a\.?|master|ph\.?d|doctorate|degree|diploma)\b", education_text, re.I))
+        certification_gap = self._certification_gap(candidate_data)
         edu_score = 1.5 if degree_present else 0.0
+        if certification_gap and degree_present:
+            edu_score = 1.2
         jd_title_terms = [term for term in required_terms if term in title]
         fit_score = round(1.5 * len(jd_title_terms) / max(1, min(4, len(required_terms))), 1)
 
@@ -269,12 +275,36 @@ Respond strictly in valid JSON format:
             return 0.5
         return 0.0
 
+    def _certification_gap(self, candidate_data: Dict[str, Any]) -> bool:
+        """Return true only when the JD names a certification absent from the resume."""
+        jd = self.job_description.lower()
+        resume = str(candidate_data.get("resume_text", "")).lower()
+        certification_families = {
+            "aws": (r"aws\s+(?:certified|certification)", r"aws\s+certified|aws\s+certification"),
+            "azure": (r"(?:azure|microsoft)\s+certif(?:ied|ication)", r"(?:azure|microsoft)\s+certif(?:ied|ication)"),
+            "gcp": (r"(?:gcp|google cloud)\s+certif(?:ied|ication)", r"(?:gcp|google cloud)\s+certif(?:ied|ication)"),
+            "pmp": (r"\bpmp\b", r"\bpmp\b"),
+            "cissp": (r"\bcissp\b", r"\bcissp\b"),
+            "comptia": (r"\bcomptia\b", r"\bcomptia\b"),
+            "cka": (r"\bcka\b", r"\bcka\b"),
+            "ckad": (r"\bckad\b", r"\bckad\b"),
+            "terraform": (r"terraform\s+associate", r"terraform\s+associate"),
+            "snowpro": (r"\bsnowpro\b", r"\bsnowpro\b"),
+            "databricks": (r"databricks\s+certif(?:ied|ication)", r"databricks\s+certif(?:ied|ication)"),
+            "scrum": (r"(?:certified scrum master|scrum master certification)", r"(?:certified scrum master|scrum master certification)"),
+        }
+        required = [resume_pattern for jd_pattern, resume_pattern in certification_families.values() if re.search(jd_pattern, jd, re.I)]
+        return bool(required) and not any(re.search(pattern, resume, re.I) for pattern in required)
+
     def _default_score_explanations(self, candidate_data: Dict[str, Any], scores: Dict[str, float]) -> Dict[str, str]:
         """Create transparent score rationales when the model does not provide them."""
         skills = ", ".join(candidate_data.get("key_skills", [])[:5]) or "no explicit skills"
         education = str(candidate_data.get("education", "Not specified"))
         degree_present = bool(re.search(r"\b(?:b\.?s\.?|b\.?a\.?|bachelor|m\.?s\.?|m\.?a\.?|master|ph\.?d|doctorate|degree|diploma)\b", education, re.I))
+        certification_gap = self._certification_gap(candidate_data)
         education_reason = (
+            f"1.2/1.5: completed degree evidence found ({education}); the JD names a relevant external certification that is not shown, so exactly 0.3 was deducted."
+            if degree_present and certification_gap else
             f"Full 1.5/1.5: completed degree evidence found ({education}); stream and distinction do not reduce this qualification score."
             if degree_present else
             "0.0/1.5: no clearly completed degree evidence was found; HR should verify education before a final decision."
