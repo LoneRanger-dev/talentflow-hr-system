@@ -258,11 +258,14 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
                 try { response = JSON.parse(message.content) as InterviewChatResponse; } catch { response = null; }
                 return <div key={index} className="mr-2 space-y-2 rounded-xl bg-slate-950/70 p-3 border border-cyan-500/10">
                   <p className="text-[11px] leading-relaxed text-slate-300">{response?.reply || message.content}</p>
-                  {response?.questions.map((question, questionIndex) => <article key={questionIndex} className="rounded-lg border border-cyan-500/10 p-2.5">
-                    <p className="font-semibold text-slate-100">{question.question}</p>
-                    <p className="mt-1 text-[10px] leading-relaxed text-emerald-200"><span className="font-semibold">Answer guide:</span> {question.answer}</p>
-                    <p className="mt-1 text-[10px] text-slate-500"><span className="font-semibold text-slate-400">Evaluate:</span> {question.evaluation_focus}</p>
-                  </article>)}
+                  {response?.next_question && <article className="rounded-lg border border-cyan-500/10 p-2.5">
+                    <div className="mb-1 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-wide text-cyan-300">
+                      <span>{response.next_question.category}</span>
+                      <span className="text-slate-500">{response.next_question.difficulty}</span>
+                    </div>
+                    <p className="font-semibold text-slate-100">{response.next_question.question}</p>
+                    <p className="mt-1 text-[10px] text-slate-500">Validating: {response.next_question.competency}</p>
+                  </article>}
                 </div>;
               })}
             </div>

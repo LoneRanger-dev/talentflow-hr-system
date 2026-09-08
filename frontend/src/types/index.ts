@@ -94,5 +94,10 @@ export interface InterviewChatMessage {
 
 export interface InterviewChatResponse {
   reply: string;
-  questions: InterviewQuestion[];
+  next_question: {
+    category: string;
+    question: string;
+    competency: string;
+    difficulty: string;
+  };
 }
