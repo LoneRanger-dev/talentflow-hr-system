@@ -22,6 +22,7 @@ from backend.utils.file_loader import (
 from backend.agents.resume_agent import ResumeIntelligenceAgent
 from backend.agents.decision_agent import DecisionEngineAgent
 from backend.agents.communication_agent import CommunicationAgent
+from backend.agents.interview_agent import InterviewPreparationAgent
 
 PRESET_JOB_DESCRIPTIONS = {
     "fullstack": {
@@ -133,6 +134,7 @@ class AppState:
     resume_agent: ResumeIntelligenceAgent = None
     decision_agent: DecisionEngineAgent = None
     communication_agent: CommunicationAgent = None
+    interview_agent: InterviewPreparationAgent = None
     cached_candidates: Dict[str, Any] = {}
     cached_evaluations: List[Dict[str, Any]] = []
 
@@ -227,6 +229,7 @@ def startup_event():
         maybe_threshold=settings.MAYBE_THRESHOLD
     )
     state.communication_agent = CommunicationAgent(llm=state.llm)
+    state.interview_agent = InterviewPreparationAgent(llm=state.llm)
     
     run_full_pipeline()
 
@@ -255,6 +258,10 @@ class JobDescRequest(BaseModel):
 class EmailGenRequest(BaseModel):
     candidate_id: str
     job_title: Optional[str] = None
+
+class InterviewQuestionsRequest(BaseModel):
+    candidate_id: str
+    generation_seed: Optional[int] = None
 
 class BulkDeleteRequest(BaseModel):
     candidate_ids: List[str]
@@ -557,6 +564,26 @@ def generate_email(req: EmailGenRequest):
         "candidate_name": evaluation["candidate_name"],
         "email": email_content
     }
+
+@app.post("/api/interview-questions")
+def generate_interview_questions(req: InterviewQuestionsRequest):
+    """Generate ten JD- and candidate-grounded interview questions with answer guides."""
+    candidate = state.cached_candidates.get(req.candidate_id)
+    if not candidate:
+        evaluation = next(
+            (item for item in state.cached_evaluations if item.get("candidate_id") == req.candidate_id),
+            None,
+        )
+        if evaluation:
+            candidate = evaluation
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate '{req.candidate_id}' not found.")
+
+    return state.interview_agent.generate_questions(
+        state.decision_agent.job_description,
+        candidate,
+        req.generation_seed,
+    )
 
 if __name__ == "__main__":
     import uvicorn

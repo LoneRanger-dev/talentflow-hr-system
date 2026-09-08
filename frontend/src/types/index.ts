@@ -72,3 +72,17 @@ export interface CandidateEmail {
   body: string;
   type: DecisionType;
 }
+
+export interface InterviewQuestion {
+  question_number: number;
+  category: string;
+  question: string;
+  answer: string;
+  evaluation_focus: string;
+}
+
+export interface InterviewQuestionPack {
+  questions: InterviewQuestion[];
+  generation_seed: number;
+  source: string;
+}

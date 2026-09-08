@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
-import { CandidateEvaluation } from '../types';
-import { X, CheckCircle, AlertTriangle, Target, Brain, Mail, Trash2, ShieldCheck, Cpu } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CandidateEvaluation, InterviewQuestionPack } from '../types';
+import { X, CheckCircle, AlertTriangle, Target, Brain, Mail, Trash2, Cpu, RefreshCw, BookOpen } from 'lucide-react';
 
 interface CandidateDrawerProps {
   candidate: CandidateEvaluation | null;
@@ -11,6 +11,7 @@ interface CandidateDrawerProps {
   onClose: () => void;
   onOpenEmail: (candidate: CandidateEvaluation) => void;
   onDeleteCandidate: (candidate: CandidateEvaluation) => void;
+  onGenerateInterviewQuestions: (candidateId: string) => Promise<InterviewQuestionPack>;
 }
 
 export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
@@ -19,11 +20,33 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
   activeJdImage,
   onClose,
   onOpenEmail,
-  onDeleteCandidate
+  onDeleteCandidate,
+  onGenerateInterviewQuestions
 }) => {
+  const [questionPack, setQuestionPack] = useState<InterviewQuestionPack | null>(null);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [questionsError, setQuestionsError] = useState('');
+
+  useEffect(() => {
+    setQuestionPack(null);
+    setQuestionsError('');
+  }, [candidate?.candidate_id]);
+
   if (!candidate) return null;
 
   const { detailed_scores } = candidate;
+
+  const refreshQuestions = async () => {
+    setQuestionsLoading(true);
+    setQuestionsError('');
+    try {
+      setQuestionPack(await onGenerateInterviewQuestions(candidate.candidate_id));
+    } catch (error) {
+      setQuestionsError(error instanceof Error ? error.message : 'Unable to generate interview questions');
+    } finally {
+      setQuestionsLoading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm transition-opacity duration-300">
@@ -209,6 +232,47 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
                 <li key={idx} className="leading-relaxed">{foc}</li>
               ))}
             </ul>
+          </div>
+
+          {/* JD-grounded interview preparation */}
+          <div className="rounded-2xl bg-cyan-950/20 p-5 border border-cyan-500/20 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-cyan-300 flex items-center text-xs">
+                  <BookOpen className="mr-1.5 h-4 w-4 text-cyan-400" /> Interview Preparation Pack
+                </h3>
+                <p className="mt-1 text-[10px] text-slate-400">Ten questions researched from this JD and candidate resume, with answer guides.</p>
+              </div>
+              <button
+                onClick={refreshQuestions}
+                disabled={questionsLoading}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-cyan-600/20 px-3 py-2 text-[10px] font-semibold text-cyan-200 border border-cyan-500/30 hover:bg-cyan-600/30 disabled:opacity-50"
+                title="Generate a new set of ten questions"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${questionsLoading ? 'animate-spin' : ''}`} />
+                {questionPack ? 'Refresh 10' : 'Generate 10'}
+              </button>
+            </div>
+
+            {questionsError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-[10px] text-rose-300">{questionsError}</p>}
+            {questionsLoading && <p className="text-[10px] text-cyan-200">Analyzing the job requirements and candidate evidence...</p>}
+            {questionPack && !questionsLoading && (
+              <div className="space-y-3">
+                {questionPack.questions.map(question => (
+                  <article key={`${questionPack.generation_seed}-${question.question_number}`} className="rounded-xl bg-slate-950/70 p-3.5 border border-cyan-500/10">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-semibold leading-relaxed text-slate-100">{question.question_number}. {question.question}</p>
+                      <span className="shrink-0 rounded-md bg-cyan-500/10 px-2 py-1 text-[9px] font-semibold text-cyan-300">{question.category}</span>
+                    </div>
+                    <div className="mt-2 border-l-2 border-emerald-500/50 pl-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Answer guide</p>
+                      <p className="mt-1 leading-relaxed text-slate-300">{question.answer}</p>
+                    </div>
+                    <p className="mt-2 text-[10px] leading-relaxed text-slate-500"><span className="font-semibold text-slate-400">Evaluate:</span> {question.evaluation_focus}</p>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>

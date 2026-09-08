@@ -1,4 +1,4 @@
-import { CandidateEvaluation, SystemAnalytics, HealthResponse, CandidateEmail, PresetJD } from '../types';
+import { CandidateEvaluation, SystemAnalytics, HealthResponse, CandidateEmail, PresetJD, InterviewQuestionPack } from '../types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -599,4 +599,14 @@ export async function generateCandidateEmail(candidateId: string): Promise<Candi
       type: 'REJECT'
     };
   }
+}
+
+export async function generateInterviewQuestions(candidateId: string): Promise<InterviewQuestionPack> {
+  const res = await fetch(`${API_BASE}/interview-questions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ candidate_id: candidateId, generation_seed: Date.now() })
+  });
+  if (!res.ok) throw new Error('Failed to generate interview questions');
+  return await res.json();
 }
