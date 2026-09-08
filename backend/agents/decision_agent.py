@@ -118,11 +118,7 @@ Respond strictly in valid JSON format:
                 value = 0.0
             component_scores[name] = max(0.0, min(limit, value))
         education_text = str(candidate_data.get("education", ""))
-        has_completed_degree = bool(re.search(
-            r"\b(?:b\.?s\.?|b\.?a\.?|bachelor|m\.?s\.?|m\.?a\.?|master|ph\.?d|doctorate|degree|diploma)\b",
-            education_text,
-            re.I,
-        ))
+        has_completed_degree = self._has_completed_degree(education_text)
         if has_completed_degree:
             component_scores["education_score"] = 1.5
         certification_gap = self._certification_gap(candidate_data)
@@ -217,7 +213,7 @@ Respond strictly in valid JSON format:
 
         # Education is a qualification gate, not a relevance multiplier.
         education_text = str(candidate_data.get("education", ""))
-        degree_present = bool(re.search(r"\b(?:b\.?s\.?|b\.?a\.?|bachelor|m\.?s\.?|m\.?a\.?|master|ph\.?d|doctorate|degree|diploma)\b", education_text, re.I))
+        degree_present = self._has_completed_degree(education_text)
         certification_gap = self._certification_gap(candidate_data)
         edu_score = 1.5 if degree_present else 0.0
         if certification_gap and degree_present:
@@ -300,7 +296,7 @@ Respond strictly in valid JSON format:
         """Create transparent score rationales when the model does not provide them."""
         skills = ", ".join(candidate_data.get("key_skills", [])[:5]) or "no explicit skills"
         education = str(candidate_data.get("education", "Not specified"))
-        degree_present = bool(re.search(r"\b(?:b\.?s\.?|b\.?a\.?|bachelor|m\.?s\.?|m\.?a\.?|master|ph\.?d|doctorate|degree|diploma)\b", education, re.I))
+        degree_present = self._has_completed_degree(education)
         certification_gap = self._certification_gap(candidate_data)
         education_reason = (
             f"1.2/1.5: completed degree evidence found ({education}); the JD names a relevant external certification that is not shown, so exactly 0.3 was deducted."
@@ -315,6 +311,16 @@ Respond strictly in valid JSON format:
             "education": education_reason,
             "overall_fit": f"{scores['overall_fit_score']}/2.0 based on role, domain, responsibility, and project alignment with the active JD.",
         }
+
+    def _has_completed_degree(self, education: str) -> bool:
+        """Recognize common completed degree formats without judging their academic stream."""
+        return bool(re.search(
+            r"\b(?:b\.?s\.?|b\.?a\.?|b\.?tech\.?|b\.?e\.?|b\.?com\.?|b\.?ba\.?|b\.?ca\.?|"
+            r"m\.?s\.?|m\.?a\.?|m\.?tech\.?|m\.?e\.?|m\.?ba\.?|m\.?ca\.?|"
+            r"bachelor|master|ph\.?d|doctorate|degree|diploma)\b",
+            education,
+            re.I,
+        ))
 
     def process_all(self, candidate_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Evaluate a list of candidate profiles."""
