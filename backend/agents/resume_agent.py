@@ -36,6 +36,7 @@ Return ONLY a valid JSON object matching this structure exactly (no markdown for
   "education": "Highest degree and university",
   "summary": "Short 2-3 sentence executive professional summary"
 }}
+Never use a section heading such as "Candidate Resume", a resume number, a job title, or "Software Engineer" as the name. If the name is not explicit, infer it from the email address or return "Unknown Candidate".
 """
 
         extracted_info = None
@@ -68,6 +69,10 @@ Return ONLY a valid JSON object matching this structure exactly (no markdown for
         if not extracted_info:
             extracted_info = self._fallback_extraction(resume_content, candidate_id)
 
+        extracted_info["name"] = self._resolve_candidate_name(
+            extracted_info.get("name"), resume_content, candidate_id
+        )
+
         # Standardize & enrich fields
         processing_time = round(time.time() - start_time, 2)
         self.processing_times.append(processing_time)
@@ -88,14 +93,14 @@ Return ONLY a valid JSON object matching this structure exactly (no markdown for
         """Intelligent heuristic regex parsing for fallback resume analysis."""
         lines = [line.strip() for line in content.split("\n") if line.strip()]
         
-        # Candidate name from filename or first line
+        # Candidate name from filename or an explicit resume heading.
         name = candidate_id.replace("_", " ").title()
-        for line in lines[:3]:
-            if "Resume" in line or "#" in line:
-                cleaned = line.replace("#", "").replace("Resume -", "").strip()
-                if cleaned and len(cleaned) < 40:
-                    name = cleaned
-                    break
+        for line in lines[:5]:
+            cleaned = re.sub(r"^#+\s*", "", line).strip()
+            heading_match = re.match(r"(?:resume\s*[-:|]\s*)([A-Za-z][A-Za-z .'-]{2,60})$", cleaned, re.I)
+            if heading_match:
+                name = heading_match.group(1).strip()
+                break
 
         # Email regex
         email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', content)
@@ -134,6 +139,37 @@ Return ONLY a valid JSON object matching this structure exactly (no markdown for
             "summary": f"Experienced professional with background in {', '.join(found_skills[:3])}.",
             "extraction_success": False
         }
+
+    def _resolve_candidate_name(self, extracted_name: Any, content: str, candidate_id: str) -> str:
+        """Reject generic headings and resolve a human name from reliable resume signals."""
+        candidate = str(extracted_name or "").strip()
+        generic_pattern = re.compile(
+            r"^(?:unknown candidate|candidate|candidate resume|resume|uploaded resume|applicant|software engineer|"
+            r"senior software engineer|full stack developer|devops engineer|data engineer)(?:\s*[-|:].*)?$",
+            re.I,
+        )
+        if candidate and not generic_pattern.match(candidate) and not re.match(r"^\d+(?:[.)]|\s)", candidate):
+            return candidate
+
+        explicit_name = re.search(
+            r"(?:^|\n)\s*(?:name|candidate name|applicant)\s*[:\-]\s*([A-Za-z][A-Za-z .'-]{2,80})\s*(?:\n|$)",
+            content,
+            re.I,
+        )
+        if explicit_name:
+            return explicit_name.group(1).strip()
+
+        email_match = re.search(r"([A-Za-z][A-Za-z0-9._%+-]*)@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", content)
+        if email_match:
+            email_name = re.sub(r"[._-]+", " ", email_match.group(1))
+            if re.match(r"^[A-Za-z]+(?:\s+[A-Za-z]+)+$", email_name):
+                return email_name.title()
+
+        filename_name = re.sub(r"[_-]+", " ", candidate_id).strip()
+        filename_name = re.sub(r"\b(?:resume|cv|candidate)\b", "", filename_name, flags=re.I).strip()
+        if re.match(r"^[A-Za-z]+(?:\s+[A-Za-z]+)+$", filename_name):
+            return filename_name.title()
+        return "Unknown Candidate"
 
     def get_agent_stats(self) -> Dict[str, Any]:
         """Return agent processing performance statistics."""
