@@ -125,6 +125,10 @@ Respond strictly in valid JSON format:
         ))
         if has_completed_degree:
             component_scores["education_score"] = 1.5
+        component_scores["overall_fit_score"] = max(
+            component_scores["overall_fit_score"],
+            self._minimum_fit_score(component_scores),
+        )
         # The model explains the evidence, but the application owns the final arithmetic.
         total_score = sum(component_scores.values())
         total_score = max(0.0, min(10.0, round(total_score, 1)))
@@ -145,10 +149,7 @@ Respond strictly in valid JSON format:
         processing_time = round(time.time() - start_time, 2)
         self.processing_times.append(processing_time)
 
-        score_explanations = dict(scoring_data.get("score_explanations", {}))
-        score_explanations["education"] = self._default_score_explanations(
-            candidate_data, component_scores
-        )["education"]
+        score_explanations = self._default_score_explanations(candidate_data, component_scores)
 
         decision_record = {
             "candidate_id": candidate_data.get("candidate_id", candidate_name.lower().replace(" ", "_")),
@@ -172,10 +173,7 @@ Respond strictly in valid JSON format:
                 "education": round(component_scores["education_score"], 1),
                 "overall_fit": round(component_scores["overall_fit_score"], 1)
             },
-            "score_explanations": {
-                **self._default_score_explanations(candidate_data, component_scores),
-                **score_explanations,
-            },
+            "score_explanations": score_explanations,
             "processing_time": processing_time
         }
 
@@ -258,6 +256,18 @@ Respond strictly in valid JSON format:
             "reasoning": f"Candidate demonstrates strong technical alignment with key technologies ({', '.join(skills[:3])}) and {exp_years} years experience."
             ,"score_explanations": score_explanations
         }
+
+    def _minimum_fit_score(self, scores: Dict[str, float]) -> float:
+        """Prevent a zero fit score when other job-relevant evidence demonstrates alignment."""
+        technical_ratio = scores["technical_skills_score"] / 3.5
+        experience_ratio = scores["experience_score"] / 2.5
+        education_ratio = scores["education_score"] / 1.5
+        evidence_ratio = (technical_ratio * 0.55) + (experience_ratio * 0.35) + (education_ratio * 0.10)
+        if evidence_ratio >= 0.75:
+            return 1.0
+        if evidence_ratio >= 0.45:
+            return 0.5
+        return 0.0
 
     def _default_score_explanations(self, candidate_data: Dict[str, Any], scores: Dict[str, float]) -> Dict[str, str]:
         """Create transparent score rationales when the model does not provide them."""
