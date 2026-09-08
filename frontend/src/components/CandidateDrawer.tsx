@@ -157,10 +157,10 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-slate-300">Technical Skills Match</span>
-                <span className="font-semibold text-white">{detailed_scores.technical_skills} / 5.0</span>
+                <span className="font-semibold text-white">{detailed_scores.technical_skills} / 6.0</span>
               </div>
               <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
-                <div style={{ width: `${(detailed_scores.technical_skills / 5.0) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
+                <div style={{ width: `${(detailed_scores.technical_skills / 6.0) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{score_explanations?.technical_skills}</p>
             </div>
@@ -181,10 +181,10 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-slate-300">Education & Qualifications</span>
-                <span className="font-semibold text-white">{detailed_scores.education} / 1.5</span>
+                <span className="font-semibold text-white">{detailed_scores.education} / 1.0</span>
               </div>
               <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
-                <div style={{ width: `${(detailed_scores.education / 1.5) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
+                <div style={{ width: `${(detailed_scores.education / 1.0) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{score_explanations?.education}</p>
             </div>
@@ -193,10 +193,10 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-slate-300">Overall Fit & Potential</span>
-                <span className="font-semibold text-white">{detailed_scores.overall_fit} / 2.0</span>
+                <span className="font-semibold text-white">{detailed_scores.overall_fit} / 1.5</span>
               </div>
               <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
-                <div style={{ width: `${(detailed_scores.overall_fit / 2.0) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
+                <div style={{ width: `${(detailed_scores.overall_fit / 1.5) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{score_explanations?.overall_fit}</p>
             </div>
