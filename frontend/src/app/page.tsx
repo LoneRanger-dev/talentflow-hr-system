@@ -66,6 +66,13 @@ export default function Home() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (!notification) return;
+    const dismissOnPageClick = () => setNotification(null);
+    document.addEventListener('mousedown', dismissOnPageClick);
+    return () => document.removeEventListener('mousedown', dismissOnPageClick);
+  }, [notification]);
+
   const triggerNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 5000);
@@ -174,7 +181,7 @@ export default function Home() {
       
       {/* Toast Notification */}
       {notification && (
-        <div className="fixed top-5 right-5 z-50 flex items-center space-x-3 rounded-xl bg-slate-900 border border-slate-700 p-4 shadow-2xl animate-slideDown">
+        <div className="fixed top-5 right-5 z-50 flex cursor-pointer items-center space-x-3 rounded-xl bg-slate-900 border border-slate-700 p-4 shadow-2xl animate-slideDown" onClick={() => setNotification(null)} title="Dismiss notification">
           {notification.type === 'success' ? (
             <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0" />
           ) : (

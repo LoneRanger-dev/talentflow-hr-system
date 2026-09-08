@@ -121,7 +121,7 @@ Never use a section heading such as "Candidate Resume", a resume number, a job t
             found_skills = ["Software Development", "Problem Solving", "Web Applications"]
 
         # Education extraction
-        edu_match = re.search(r'(B\.Tech\.?|B\.E\.?|B\.S\.?|M\.Tech\.?|M\.E\.?|M\.S\.?|MCA|MBA|Bachelor|Master|Degree)[^\n]+', content, re.I)
+        edu_match = re.search(r'(B\.Tech\.?|B\.E\.?|B\.S\.C?\.?|B\.Sc\.?|M\.Tech\.?|M\.E\.?|M\.S\.C?\.?|M\.Sc\.?|MCA|MBA|Bachelor|Master|Degree)[^\n]+', content, re.I)
         education = edu_match.group(0).strip() if edu_match else "Higher Education Degree"
 
         # Title extraction

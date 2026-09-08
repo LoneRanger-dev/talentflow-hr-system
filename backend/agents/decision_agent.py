@@ -315,8 +315,8 @@ Respond strictly in valid JSON format:
     def _has_completed_degree(self, education: str) -> bool:
         """Recognize common completed degree formats without judging their academic stream."""
         return bool(re.search(
-            r"\b(?:b\.?s\.?|b\.?a\.?|b\.?tech\.?|b\.?e\.?|b\.?com\.?|b\.?ba\.?|b\.?ca\.?|"
-            r"m\.?s\.?|m\.?a\.?|m\.?tech\.?|m\.?e\.?|m\.?ba\.?|m\.?ca\.?|"
+            r"\b(?:b\.?s\.?c?\.?|b\.?a\.?|b\.?tech\.?|b\.?e\.?|b\.?com\.?|b\.?ba\.?|b\.?ca\.?|b\.?sc\.?|"
+            r"m\.?s\.?c?\.?|m\.?a\.?|m\.?tech\.?|m\.?e\.?|m\.?ba\.?|m\.?ca\.?|m\.?sc\.?|"
             r"bachelor|master|ph\.?d|doctorate|degree|diploma)\b",
             education,
             re.I,
