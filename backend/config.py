@@ -20,7 +20,7 @@ class Settings:
     
     # Decision Engine Thresholds
     ADVANCE_THRESHOLD: float = 7.0
-    MAYBE_THRESHOLD: float = 5.0
+    MAYBE_THRESHOLD: float = 5.1
     
     # Analytics & ROI Constants
     MANUAL_MINUTES_PER_RESUME: float = 6.0

@@ -29,7 +29,7 @@ export const JobConfigModal: React.FC<JobConfigModalProps> = ({
   const [geminiKey, setGeminiKey] = useState('');
   const [provider, setProvider] = useState('gemini');
   const [advanceThreshold, setAdvanceThreshold] = useState(7.0);
-  const [maybeThreshold, setMaybeThreshold] = useState(5.0);
+  const [maybeThreshold, setMaybeThreshold] = useState(5.1);
   const [isApplying, setIsApplying] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -296,13 +296,14 @@ export const JobConfigModal: React.FC<JobConfigModalProps> = ({
               </div>
               <input
                 type="range"
-                min="2.0"
-                max="6.5"
-                step="0.5"
+                min="5.1"
+                max="6.9"
+                step="0.1"
                 value={maybeThreshold}
                 onChange={e => setMaybeThreshold(parseFloat(e.target.value))}
                 className="w-full accent-amber-500"
               />
+              <p className="text-[10px] text-slate-500">Candidates scoring 5.0 or below are always rejected.</p>
             </div>
 
           </div>

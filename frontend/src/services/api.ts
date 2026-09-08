@@ -264,7 +264,7 @@ export async function fetchHealth(): Promise<HealthResponse> {
     active_jd_title: 'Target Role',
     active_jd_image: '',
     total_candidates: 0,
-    thresholds: { advance: 7.0, maybe: 5.0 }
+    thresholds: { advance: 7.0, maybe: 5.1 }
   };
 }
 

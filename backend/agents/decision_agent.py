@@ -11,7 +11,10 @@ class DecisionEngineAgent:
     and generates interview preparation insights.
     """
     
-    def __init__(self, llm=None, job_description: str = "", advance_threshold: float = 7.0, maybe_threshold: float = 5.0):
+    # Candidates scoring below this are always rejected, regardless of configured thresholds.
+    MIN_CONSIDERATION_SCORE = 5.1
+
+    def __init__(self, llm=None, job_description: str = "", advance_threshold: float = 7.0, maybe_threshold: float = 5.1):
         self.llm = llm
         self.job_description = job_description
         self.advance_threshold = advance_threshold
@@ -22,7 +25,7 @@ class DecisionEngineAgent:
     def set_thresholds(self, advance: float, maybe: float):
         """Dynamically update scoring thresholds."""
         self.advance_threshold = max(1.0, min(10.0, advance))
-        self.maybe_threshold = max(0.0, min(self.advance_threshold, maybe))
+        self.maybe_threshold = max(self.MIN_CONSIDERATION_SCORE, min(self.advance_threshold, maybe))
 
     def evaluate_candidate(self, candidate_data: Dict[str, Any]) -> Dict[str, Any]:
         """Evaluate candidate resume against job requirements."""
@@ -136,11 +139,12 @@ Respond strictly in valid JSON format:
         total_score = sum(component_scores.values())
         total_score = max(0.0, min(10.0, round(total_score, 1)))
 
+        minimum_consideration_score = max(self.maybe_threshold, self.MIN_CONSIDERATION_SCORE)
         if total_score >= self.advance_threshold:
             decision = "ADVANCE"
             next_action = "Schedule technical interview"
             priority = "High"
-        elif total_score >= self.maybe_threshold:
+        elif total_score >= minimum_consideration_score:
             decision = "MAYBE"
             next_action = "Phone screening required"
             priority = "Medium"

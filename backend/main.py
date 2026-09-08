@@ -252,7 +252,7 @@ class ConfigRequest(BaseModel):
     provider: Optional[str] = "auto"
     gemini_key: Optional[str] = None
     advance_threshold: Optional[float] = 7.0
-    maybe_threshold: Optional[float] = 5.0
+    maybe_threshold: Optional[float] = 5.1
 
 class JobDescRequest(BaseModel):
     content: Optional[str] = None

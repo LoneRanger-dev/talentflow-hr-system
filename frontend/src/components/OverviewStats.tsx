@@ -110,7 +110,7 @@ export const OverviewStats: React.FC<OverviewStatsProps> = ({ analytics, loading
           <h3 className="text-sm font-semibold text-white flex items-center">
             Autonomous Decision Funnel
           </h3>
-          <span className="text-xs text-slate-400">System Thresholds: ADVANCE &ge; 7.0 | MAYBE &ge; 5.0</span>
+          <span className="text-xs text-slate-400">System Thresholds: ADVANCE &ge; 7.0 | MAYBE &ge; 5.1</span>
         </div>
 
         {/* Multi-segment Progress Bar */}
