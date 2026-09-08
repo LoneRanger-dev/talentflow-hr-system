@@ -131,7 +131,7 @@ Return ONLY valid JSON with exactly 10 questions. Cover: role-specific technical
         transcript = "\n".join(f"{item['role'].upper()}: {item['content']}" for item in safe_messages)
         prompt = f"""{ADAPTIVE_INTERVIEWER_SYSTEM_PROMPT}
 
-    Continue the interview for this specific candidate. The interviewer may provide a sample question, a candidate answer, or a command such as "go deeper". Detect the requested mode. For live interview requests, choose the single most valuable next question. For explicit question-generation requests, return a compact set of relevant questions with answer guidance. Never invent candidate evidence.
+    Continue for this candidate. A simple topic such as "RAG architecture", "AWS", or "Python" means QUESTION GENERATOR mode and should produce a progression from fundamentals to advanced production scenarios with answers. Use LIVE mode only for explicit commands such as "interview this candidate", "ask the next question", or when the conversation contains a candidate answer that needs a follow-up. Never invent candidate evidence.
 
 JOB DESCRIPTION:
 {job_description}
@@ -192,7 +192,7 @@ For question-generator mode:
 
         latest = safe_messages[-1]["content"] if safe_messages else ""
         if self._is_generator_request(latest):
-            generated = self._fallback_questions(job_description, candidate, random.randint(1, 999999999))
+            generated = self._fallback_topic_questions(latest) if "rag" in latest.lower() else self._fallback_questions(job_description, candidate, random.randint(1, 999999999))
             return {
                 "mode": "generator",
                 "reply": "These questions are grounded in the active JD, candidate resume, seniority, and the requested interview mode.",
@@ -205,7 +205,7 @@ For question-generator mode:
                         "follow_up": item["evaluation_focus"],
                         "evaluation": item["evaluation_focus"],
                     }
-                    for item in generated[:5]
+                    for item in generated[:10]
                 ],
             }
         jd_terms = list(dict.fromkeys(re.findall(r"\b(?:python|react|typescript|javascript|aws|azure|gcp|kubernetes|terraform|snowflake|sql|etl|docker|fastapi|llm|langchain|api|security|leadership)\b", job_description.lower())))
@@ -229,10 +229,13 @@ For question-generator mode:
 
     def _is_generator_request(self, message: str) -> bool:
         text = message.lower()
+        if any(phrase in text for phrase in ("interview this candidate", "ask the next question", "candidate answer", "go deeper", "challenge the candidate")):
+            return False
         return any(phrase in text for phrase in (
             "give me questions", "generate questions", "questions with answers",
             "create questions", "scenario questions", "coding questions", "system design",
-            "question generator", "10 questions",
+            "question generator", "10 questions", "rag", "retrieval augmented", "architecture",
+            "technical interview", "interview questions", "explain", "about ", "how does ",
         ))
 
     def _validate_generated_questions(self, questions: Any) -> List[Dict[str, str]]:
@@ -251,6 +254,20 @@ For question-generator mode:
                 "evaluation": str(item.get("evaluation", "Assess correctness, depth, practical evidence, and JD alignment.")),
             })
         return valid
+
+    def _fallback_topic_questions(self, topic: str) -> List[Dict[str, str]]:
+        """Provide a useful basic-to-advanced pack when the LLM is unavailable."""
+        topic_label = topic.strip() or "RAG architecture"
+        return [
+            {"category": "Fundamental", "question": f"For {topic_label}, what problem does Retrieval-Augmented Generation solve, and how is it different from fine-tuning?", "answer": "RAG retrieves current, task-specific evidence and gives it to the model at inference time. Fine-tuning changes model parameters and is better for behavior or format adaptation, not continuously changing facts.", "evaluation_focus": "Clear separation of retrieval, generation, and model training."},
+            {"category": "Architecture", "question": "Describe a production RAG pipeline from document ingestion to the final grounded answer.", "answer": "Cover parsing, cleaning, chunking, metadata, embeddings, indexing, query transformation, hybrid or vector retrieval, reranking, context construction, generation, citations, and evaluation or monitoring.", "evaluation_focus": "End-to-end completeness and correct component boundaries."},
+            {"category": "Retrieval", "question": "How would you choose chunk size, overlap, and metadata for a mixed collection of documents?", "answer": "Use structure-aware or semantic boundaries, tune size against answer completeness and noise, preserve metadata such as source and section, and evaluate retrieval recall rather than choosing a universal number.", "evaluation_focus": "Practical tuning and measurable retrieval quality."},
+            {"category": "Scenario", "question": "Recall@5 is 97%, but answer accuracy is only 80%. What could be happening?", "answer": "Retrieval and generation are separate failure points. The correct document may contain the wrong chunk, irrelevant chunks may crowd context, reranking may fail, context may be truncated, sources may conflict, or the model may generate an ungrounded answer. Compare retrieval metrics with groundedness and answer-quality metrics.", "evaluation_focus": "Whether the candidate traces the complete pipeline instead of only changing the prompt."},
+            {"category": "Evaluation", "question": "How would you evaluate groundedness, faithfulness, and retrieval quality for a RAG system?", "answer": "Measure retrieval recall and precision, context relevance, answer correctness, faithfulness or citation support, latency, and cost using a versioned representative dataset plus human review for difficult cases.", "evaluation_focus": "Metric separation, test design, and production usefulness."},
+            {"category": "Advanced", "question": "How would you design RAG for conflicting sources, long context, and multi-hop questions?", "answer": "Use source authority metadata, query decomposition, iterative retrieval, reranking, context compression, explicit conflict handling, citations, and a refusal path when evidence is insufficient.", "evaluation_focus": "Architecture trade-offs, reliability, and safe uncertainty."},
+            {"category": "Production", "question": "A RAG system becomes slow and expensive after document volume doubles. What would you investigate and change?", "answer": "Profile parsing, embedding, retrieval, reranking, prompt tokens, and model latency separately; add caching, incremental indexing, metadata filters, smaller reranking scope, batching, model routing, and token budgets while protecting quality.", "evaluation_focus": "Observability, cost control, and quality-preserving optimization."},
+            {"category": "Security", "question": "How would you defend a RAG system against prompt injection and unauthorized document retrieval?", "answer": "Enforce tenant and document ACLs before retrieval, treat retrieved text as untrusted data, isolate instructions from evidence, validate tool calls, filter sensitive content, log provenance, and test malicious documents and queries.", "evaluation_focus": "Security boundaries and realistic threat modeling."},
+        ]
 
     def _validate_next_question(self, question: Any) -> Dict[str, str]:
         if not isinstance(question, dict) or not question.get("question"):

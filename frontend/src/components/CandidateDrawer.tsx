@@ -243,7 +243,7 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
             <h3 className="font-bold text-cyan-300 flex items-center text-xs">
               <BookOpen className="mr-1.5 h-4 w-4 text-cyan-400" /> Interview Research Chat
             </h3>
-            <p className="text-[10px] text-slate-400">Give one or two sample questions. The assistant will create relevant follow-ups from this JD and resume.</p>
+            <p className="text-[10px] text-slate-400">Enter a topic, technology, or interview command. The assistant adapts to the JD and resume, or generates basic-to-advanced questions with answers.</p>
             <div className="max-h-96 space-y-3 overflow-y-auto">
               {chatMessages.map((message, index) => {
                 if (message.role === 'user') return <div key={index} className="ml-6 rounded-xl bg-cyan-500/10 p-3 text-[11px] text-cyan-100">{message.content}</div>;
@@ -272,8 +272,8 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
             </div>
             {chatError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-[10px] text-rose-300">{chatError}</p>}
             <div className="flex gap-2">
-              <textarea value={chatInput} onChange={event => setChatInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendChat(); } }} rows={2} placeholder="e.g. Ask a deeper follow-up on the candidate's AWS project..." className="flex-1 rounded-lg bg-slate-950 p-2.5 text-[11px] text-slate-200 border border-slate-800 focus:border-cyan-500 focus:outline-none" />
-              <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()} className="self-end rounded-lg bg-cyan-600 p-2.5 text-white hover:bg-cyan-500 disabled:opacity-50" title="Send sample question">
+              <textarea value={chatInput} onChange={event => setChatInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendChat(); } }} rows={2} placeholder="e.g. RAG architecture, AWS scenarios, or Interview this candidate..." className="flex-1 rounded-lg bg-slate-950 p-2.5 text-[11px] text-slate-200 border border-slate-800 focus:border-cyan-500 focus:outline-none" />
+              <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()} className="self-end rounded-lg bg-cyan-600 p-2.5 text-white hover:bg-cyan-500 disabled:opacity-50" title="Send interview topic or command">
                 <Send className="h-4 w-4" />
               </button>
             </div>
