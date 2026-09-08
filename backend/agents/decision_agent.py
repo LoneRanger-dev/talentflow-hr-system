@@ -55,19 +55,19 @@ FULL RESUME:
 {resume_text}
 
 SCORING RULES (score only evidence in the JD and resume; do not use generic software-engineering assumptions):
-1. Technical Skills Match (0.0 to 5.0 pts): required and preferred technologies, domain tools, and responsibilities. This is the primary filter for the role.
+1. Technical Skills Match (0.0 to 6.0 pts): required and preferred technologies, domain tools, and responsibilities. This is the primary filter for the role.
 2. Experience Level & Relevance (0.0 to 1.5 pts): years, seniority, and directly comparable work.
-3. Education & Qualifications (0.0 to 1.5 pts): award the full 1.5 points for any clearly completed regular degree, regardless of academic stream, specialization, distinction, or ordinary pass. Do not reduce this score because the degree is unrelated to the JD. If the JD explicitly requires or strongly prefers a relevant external certification and the resume does not show one, deduct exactly 0.3 points from this category. If the JD has no relevant certification requirement, do not deduct anything. If education is missing, incomplete, unverifiable, or explicitly non-regular, record that as a concern for HR review rather than silently changing the score.
-4. Overall Fit & Potential (0.0 to 2.0 pts): role, domain, responsibility, and project alignment.
+3. Education & Qualifications (0.0 to 1.0 pts): award the full 1.0 points for any clearly completed regular degree, regardless of academic stream, specialization, distinction, or ordinary pass. Do not reduce this score because the degree is unrelated to the JD. If the JD explicitly requires or strongly prefers a relevant external certification and the resume does not show one, deduct exactly 0.3 points from this category. If the JD has no relevant certification requirement, do not deduct anything. If education is missing, incomplete, unverifiable, or explicitly non-regular, record that as a concern for HR review rather than silently changing the score.
+4. Overall Fit & Potential (0.0 to 1.5 pts): role, domain, responsibility, and project alignment.
 The total_score MUST equal the sum of the four component scores, rounded to one decimal. Missing mandatory requirements must materially reduce the score. A candidate with a different technology domain must not receive a high score merely for having general engineering experience.
 
 Respond strictly in valid JSON format:
 {{
   "candidate_name": "{candidate_name}",
-    "technical_skills_score": 3.5,
+    "technical_skills_score": 4.0,
     "experience_score": 1.0,
-    "education_score": 1.0,
-    "overall_fit_score": 1.5,
+    "education_score": 0.8,
+    "overall_fit_score": 1.0,
     "total_score": 7.0,
   "strengths": ["Key strength 1", "Key strength 2"],
   "concerns": ["Area of concern or weakness"],
@@ -105,10 +105,10 @@ Respond strictly in valid JSON format:
 
         # Make autonomous decision based on thresholds
         component_limits = {
-            "technical_skills_score": 5.0,
+            "technical_skills_score": 6.0,
             "experience_score": 1.5,
-            "education_score": 1.5,
-            "overall_fit_score": 2.0,
+            "education_score": 1.0,
+            "overall_fit_score": 1.5,
         }
         component_scores = {}
         for name, limit in component_limits.items():
@@ -120,10 +120,14 @@ Respond strictly in valid JSON format:
         education_text = str(candidate_data.get("education", ""))
         has_completed_degree = self._has_completed_degree(education_text)
         if has_completed_degree:
-            component_scores["education_score"] = 1.5
+            component_scores["education_score"] = 1.0
         certification_gap = self._certification_gap(candidate_data)
         if certification_gap and has_completed_degree:
-            component_scores["education_score"] = 1.2
+            component_scores["education_score"] = 0.7
+        required_years = self._required_experience_years()
+        candidate_years = self._candidate_experience_years(experience)
+        if required_years is not None and candidate_years is not None and candidate_years < required_years:
+            component_scores["experience_score"] = min(component_scores["experience_score"], 0.75)
         component_scores["overall_fit_score"] = max(
             component_scores["overall_fit_score"],
             self._minimum_fit_score(component_scores),
@@ -167,10 +171,10 @@ Respond strictly in valid JSON format:
             "interview_focus": scoring_data.get("interview_focus", ["System design and API architecture"]),
             "reasoning": scoring_data.get("reasoning", f"Evaluated score {total_score}/10 based on skills alignment and experience."),
             "detailed_scores": {
-                "technical_skills": round(component_scores["technical_skills_score"], 1),
-                "experience": round(component_scores["experience_score"], 1),
-                "education": round(component_scores["education_score"], 1),
-                "overall_fit": round(component_scores["overall_fit_score"], 1)
+                "technical_skills": round(component_scores["technical_skills_score"], 2),
+                "experience": round(component_scores["experience_score"], 2),
+                "education": round(component_scores["education_score"], 2),
+                "overall_fit": round(component_scores["overall_fit_score"], 2)
             },
             "score_explanations": score_explanations,
             "processing_time": processing_time
@@ -194,7 +198,7 @@ Respond strictly in valid JSON format:
         required_terms = list(dict.fromkeys(jd_terms))
         candidate_text = f"{' '.join(skills)} {resume_text}"
         matched_skills = [term for term in required_terms if term in candidate_text]
-        tech_score = round(5.0 * len(matched_skills) / max(1, len(required_terms)), 1)
+        tech_score = round(6.0 * len(matched_skills) / max(1, len(required_terms)), 1)
 
         # Experience score
         exp_years = 3.0
@@ -215,11 +219,14 @@ Respond strictly in valid JSON format:
         education_text = str(candidate_data.get("education", ""))
         degree_present = self._has_completed_degree(education_text)
         certification_gap = self._certification_gap(candidate_data)
-        edu_score = 1.5 if degree_present else 0.0
+        edu_score = 1.0 if degree_present else 0.0
         if certification_gap and degree_present:
-            edu_score = 1.2
+            edu_score = 0.7
+        required_years = self._required_experience_years()
+        if required_years is not None and exp_years < required_years:
+            exp_score = min(exp_score, 0.75)
         jd_title_terms = [term for term in required_terms if term in title]
-        fit_score = round(2.0 * len(jd_title_terms) / max(1, min(4, len(required_terms))), 1)
+        fit_score = round(1.5 * len(jd_title_terms) / max(1, min(4, len(required_terms))), 1)
 
         total = round(tech_score + exp_score + edu_score + fit_score, 1)
 
@@ -261,9 +268,9 @@ Respond strictly in valid JSON format:
 
     def _minimum_fit_score(self, scores: Dict[str, float]) -> float:
         """Prevent a zero fit score when other job-relevant evidence demonstrates alignment."""
-        technical_ratio = scores["technical_skills_score"] / 5.0
+        technical_ratio = scores["technical_skills_score"] / 6.0
         experience_ratio = scores["experience_score"] / 1.5
-        education_ratio = scores["education_score"] / 1.5
+        education_ratio = scores["education_score"] / 1.0
         evidence_ratio = (technical_ratio * 0.55) + (experience_ratio * 0.35) + (education_ratio * 0.10)
         if evidence_ratio >= 0.75:
             return 1.0
@@ -302,7 +309,7 @@ Respond strictly in valid JSON format:
         matched_terms = [term for term in jd_terms if term in candidate_text]
         missing_terms = [term for term in jd_terms if term not in candidate_text]
         skills = ", ".join(matched_terms[:6]) or "no explicit JD technology match"
-        technical_reason = f"{scores['technical_skills_score']}/5.0: matched {len(matched_terms)} of {len(jd_terms)} detected JD technologies ({skills})."
+        technical_reason = f"{scores['technical_skills_score']}/6.0: matched {len(matched_terms)} of {len(jd_terms)} detected JD technologies ({skills})."
         if missing_terms:
             technical_reason += f" Reduced because these JD technologies were not evidenced: {', '.join(missing_terms[:5])}."
         else:
@@ -315,7 +322,7 @@ Respond strictly in valid JSON format:
         required_years = float(jd_experience_match.group(1)) if jd_experience_match else None
         experience_reason = f"{scores['experience_score']}/1.5: based on {experience_text} and directly relevant responsibilities."
         if required_years is not None and candidate_years is not None and candidate_years < required_years:
-            experience_reason += f" Reduced because the JD asks for about {required_years:g}+ years and the resume shows {candidate_years:g}."
+            experience_reason += f" Reduced to half credit because the JD asks for about {required_years:g}+ years and the resume shows {candidate_years:g}."
         elif scores["experience_score"] < 1.5:
             experience_reason += " Reduced because seniority or directly comparable responsibility was not fully evidenced."
         else:
@@ -325,11 +332,11 @@ Respond strictly in valid JSON format:
         degree_present = self._has_completed_degree(education)
         certification_gap = self._certification_gap(candidate_data)
         education_reason = (
-            f"1.2/1.5: completed degree evidence found ({education}); the JD names a relevant external certification that is not shown, so exactly 0.3 was deducted."
+            f"0.7/1.0: completed degree evidence found ({education}); the JD names a relevant external certification that is not shown, so exactly 0.3 was deducted."
             if degree_present and certification_gap else
-            f"Full 1.5/1.5: completed degree evidence found ({education}); stream and distinction do not reduce this qualification score."
+            f"Full 1.0/1.0: completed degree evidence found ({education}); stream and distinction do not reduce this qualification score."
             if degree_present else
-            "0.0/1.5: no clearly completed degree evidence was found; HR should verify education before a final decision."
+            "0.0/1.0: no clearly completed degree evidence was found; HR should verify education before a final decision."
         )
         return {
             "technical_skills": technical_reason,
@@ -338,9 +345,17 @@ Respond strictly in valid JSON format:
             "overall_fit": self._fit_score_explanation(scores, matched_terms, missing_terms),
         }
 
+    def _required_experience_years(self) -> Optional[float]:
+        match = re.search(r"(\d+(?:\.\d+)?)\s*\+?\s*years?", self.job_description.lower())
+        return float(match.group(1)) if match else None
+
+    def _candidate_experience_years(self, experience: Any) -> Optional[float]:
+        match = re.search(r"(\d+(?:\.\d+)?)", str(experience))
+        return float(match.group(1)) if match else None
+
     def _fit_score_explanation(self, scores: Dict[str, float], matched_terms: List[str], missing_terms: List[str]) -> str:
-        reason = f"{scores['overall_fit_score']}/2.0: based on role, domain, responsibility, and project alignment with the active JD."
-        if scores["overall_fit_score"] < 2.0:
+        reason = f"{scores['overall_fit_score']}/1.5: based on role, domain, responsibility, and project alignment with the active JD."
+        if scores["overall_fit_score"] < 1.5:
             if missing_terms:
                 reason += f" Reduced because the profile does not evidence full alignment with: {', '.join(missing_terms[:4])}."
             elif len(matched_terms) < 2:
