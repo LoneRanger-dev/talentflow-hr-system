@@ -15,7 +15,8 @@ import {
   bulkDeleteCandidates,
   clearAllCandidates,
   generateCandidateEmail,
-  interviewChat
+  interviewChat,
+  processCandidates
 } from '../services/api';
 import { updateConfig } from '../services/api';
 
@@ -35,6 +36,7 @@ export default function Home() {
   const [loading, setLoading] = useState<boolean>(true);
   const [reEvaluating, setReEvaluating] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [inlineNotification, setInlineNotification] = useState<string | null>(null);
 
   // Modals & Drawer State
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateEvaluation | null>(null);
@@ -72,11 +74,12 @@ export default function Home() {
   const handleReEvaluate = async () => {
     setReEvaluating(true);
     try {
+      const processed = await processCandidates();
       const cData = await fetchCandidates();
       const aData = await fetchAnalytics();
       setCandidates(cData.candidates);
       setAnalytics(aData);
-      triggerNotification('success', `Re-evaluated candidates against current target role: "${cData.active_jd_title || health?.active_jd_title}"`);
+      triggerNotification('success', `Re-evaluated ${processed.candidates?.length ?? cData.candidates.length} candidates against the current job description.`);
     } catch (e) {
       triggerNotification('error', 'Failed re-evaluating candidates');
     } finally {
@@ -122,7 +125,8 @@ export default function Home() {
       setAnalytics(aData);
       setHealth(hData);
       setSelectedCandidate(null);
-      triggerNotification('success', 'Cleared all candidate resumes. You can now start inserting fresh resumes!');
+      setInlineNotification('All candidate resumes and calculations were cleared. You can start a fresh evaluation batch.');
+      setTimeout(() => setInlineNotification(null), 5000);
     } catch (e) {
       triggerNotification('error', 'Failed clearing candidate dataset');
     }
@@ -223,6 +227,7 @@ export default function Home() {
             onDeleteCandidate={handleDeleteCandidate}
             onBulkDeleteCandidates={handleBulkDeleteCandidates}
             onClearAllCandidates={handleClearAllCandidates}
+            inlineNotification={inlineNotification}
           />
         </section>
 

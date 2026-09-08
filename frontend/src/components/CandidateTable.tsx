@@ -12,6 +12,7 @@ interface CandidateTableProps {
   onDeleteCandidate: (candidate: CandidateEvaluation) => void;
   onBulkDeleteCandidates: (candidateIds: string[]) => void;
   onClearAllCandidates: () => void;
+  inlineNotification?: string | null;
 }
 
 export const CandidateTable: React.FC<CandidateTableProps> = ({
@@ -21,7 +22,8 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
   onOpenEmail,
   onDeleteCandidate,
   onBulkDeleteCandidates,
-  onClearAllCandidates
+  onClearAllCandidates,
+  inlineNotification
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<'ALL' | DecisionType>('ALL');
@@ -137,6 +139,12 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
           )}
         </div>
       </div>
+
+      {inlineNotification && (
+        <div className="border-b border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-xs font-semibold text-emerald-300">
+          {inlineNotification}
+        </div>
+      )}
 
       {/* Bulk Action Banner when checkboxed */}
       {selectedIds.length > 0 && (

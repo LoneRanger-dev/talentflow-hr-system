@@ -259,11 +259,11 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return {
     status: 'online (mock)',
     service: 'TalentFlow Autonomous HR System',
-    llm_provider: 'Google Gemini 1.5 Flash API (Active)',
-    llm_active: true,
-    active_jd_title: 'Senior Full Stack Engineer - AI & Web Applications',
-    active_jd_image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
-    total_candidates: MOCK_CANDIDATES.length,
+    llm_provider: 'Backend unavailable',
+    llm_active: false,
+    active_jd_title: 'Target Role',
+    active_jd_image: '',
+    total_candidates: 0,
     thresholds: { advance: 7.0, maybe: 5.0 }
   };
 }
@@ -273,14 +273,20 @@ export async function fetchCandidates(): Promise<{ candidates: CandidateEvaluati
     const res = await fetch(`${API_BASE}/candidates`);
     if (res.ok) return await res.json();
   } catch (e) {
-    console.warn('API offline, returning pre-populated candidates');
+    console.warn('API offline, returning an empty candidate dataset');
   }
   return { 
-    candidates: MOCK_CANDIDATES, 
-    total: MOCK_CANDIDATES.length, 
-    active_jd_title: 'Senior Full Stack Engineer - AI & Web Applications',
-    active_jd_image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80'
+    candidates: [],
+    total: 0,
+    active_jd_title: 'Target Role',
+    active_jd_image: ''
   };
+}
+
+export async function processCandidates(): Promise<any> {
+  const res = await fetch(`${API_BASE}/process`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to re-evaluate candidates');
+  return await res.json();
 }
 
 export async function fetchJobDescription(): Promise<{ content: string; active_title?: string; active_image?: string; active_stream?: string; presets?: Record<string, PresetJD> }> {
@@ -525,18 +531,16 @@ export async function fetchAnalytics(): Promise<SystemAnalytics> {
     console.warn('API offline, computing dynamic analytics');
   }
 
-  const total = MOCK_CANDIDATES.length;
-  const advance = MOCK_CANDIDATES.filter(c => c.decision === 'ADVANCE').length;
-  const maybe = MOCK_CANDIDATES.filter(c => c.decision === 'MAYBE').length;
-  const reject = MOCK_CANDIDATES.filter(c => c.decision === 'REJECT').length;
-  const avgScore = total > 0 ? parseFloat((MOCK_CANDIDATES.reduce((acc, c) => acc + c.total_score, 0) / total).toFixed(2)) : 0.0;
-
-  const manualHrs = parseFloat(((total * 21.0) / 60.0).toFixed(2));
-  const aiHrs = parseFloat((total * 0.0005).toFixed(4));
-  const hoursSaved = parseFloat(Math.max(0, manualHrs - aiHrs).toFixed(1));
-  const costSavings = parseFloat((hoursSaved * 80.0).toFixed(2));
-  const effGain = total > 0 ? parseFloat((((manualHrs - aiHrs) / manualHrs) * 100).toFixed(1)) : 0.0;
-  const qualifyingHires = Math.max(1, advance + maybe);
+  const total = 0;
+  const advance = 0;
+  const maybe = 0;
+  const reject = 0;
+  const avgScore = 0.0;
+  const manualHrs = 0.0;
+  const aiHrs = 0.0;
+  const hoursSaved = 0.0;
+  const costSavings = 0.0;
+  const effGain = 0.0;
 
   return {
     total_candidates: total,
@@ -554,7 +558,7 @@ export async function fetchAnalytics(): Promise<SystemAnalytics> {
       hours_saved: hoursSaved,
       cost_savings_usd: costSavings,
       efficiency_gain_percentage: effGain,
-      savings_per_hire: total > 0 ? parseFloat((costSavings / qualifyingHires).toFixed(2)) : 0.0
+      savings_per_hire: 0.0
     }
   };
 }

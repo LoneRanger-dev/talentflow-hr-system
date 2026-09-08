@@ -16,7 +16,6 @@ from backend.config import settings
 from backend.utils.file_loader import (
     load_job_description, 
     save_job_description, 
-    load_all_resumes,
     extract_text_from_file_bytes
 )
 from backend.agents.resume_agent import ResumeIntelligenceAgent
@@ -234,13 +233,19 @@ def startup_event():
     run_full_pipeline()
 
 def run_full_pipeline():
-    if not state.cached_candidates:
-        resumes_data = load_all_resumes()
-        for candidate_id, info in resumes_data.items():
-            extracted = state.resume_agent.extract_resume_info(info["content"], candidate_id)
-            state.cached_candidates[candidate_id] = extracted
-
     state.cached_evaluations = state.decision_agent.process_all(list(state.cached_candidates.values()))
+
+def create_unique_candidate_id(name: str, filename: str) -> str:
+    """Create a stable ID without replacing an earlier upload with the same filename."""
+    base = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    if not base or base in {"unknown_candidate", "candidate"}:
+        base = re.sub(r"[^a-z0-9]+", "_", Path(filename).stem.lower()).strip("_") or "candidate"
+    candidate_id = base
+    suffix = 2
+    while candidate_id in state.cached_candidates:
+        candidate_id = f"{base}_{suffix}"
+        suffix += 1
+    return candidate_id
 
 # Schemas
 class ConfigRequest(BaseModel):
@@ -477,13 +482,12 @@ async def upload_resume(
         if not extracted_text or not extracted_text.strip():
             extracted_text = f"Candidate resume for {candidate_name or 'Uploaded Candidate'} with technical development experience."
 
-        candidate_id = filename.rsplit(".", 1)[0].lower().replace(" ", "_").replace("-", "_")
-        if candidate_name and candidate_name.strip():
-            candidate_id = candidate_name.lower().replace(" ", "_")
-
-        extracted_profile = state.resume_agent.extract_resume_info(extracted_text, candidate_id)
+        extracted_profile = state.resume_agent.extract_resume_info(extracted_text, "uploaded_resume")
         if candidate_name and candidate_name.strip():
             extracted_profile["name"] = candidate_name.strip()
+
+        candidate_id = create_unique_candidate_id(extracted_profile.get("name", ""), filename)
+        extracted_profile["candidate_id"] = candidate_id
 
         state.cached_candidates[candidate_id] = extracted_profile
         evaluation = state.decision_agent.evaluate_candidate(extracted_profile)
@@ -501,7 +505,7 @@ async def upload_resume(
     except Exception as e:
         print(f"⚠️ Exception in upload_resume endpoint: {e}")
         fallback_name = candidate_name or "Uploaded Candidate"
-        fallback_id = fallback_name.lower().replace(" ", "_")
+        fallback_id = create_unique_candidate_id(fallback_name, "uploaded_resume.txt")
         if state.resume_agent and state.decision_agent:
             extracted_profile = state.resume_agent.extract_resume_info(resume_text or "Software Engineer Candidate", fallback_id)
             if candidate_name:
@@ -534,9 +538,9 @@ async def upload_batch_resumes(
             if not extracted_text.strip():
                 extracted_text = f"Resume details extracted from {filename}."
 
-            candidate_id = filename.rsplit(".", 1)[0].lower().replace(" ", "_").replace("-", "_")
-
-            extracted_profile = state.resume_agent.extract_resume_info(extracted_text, candidate_id)
+            extracted_profile = state.resume_agent.extract_resume_info(extracted_text, "uploaded_resume")
+            candidate_id = create_unique_candidate_id(extracted_profile.get("name", ""), filename)
+            extracted_profile["candidate_id"] = candidate_id
             state.cached_candidates[candidate_id] = extracted_profile
             
             evaluation = state.decision_agent.evaluate_candidate(extracted_profile)
