@@ -57,7 +57,7 @@ FULL RESUME:
 SCORING RULES (score only evidence in the JD and resume; do not use generic software-engineering assumptions):
 1. Technical Skills Match (0.0 to 3.5 pts): required and preferred technologies, domain tools, and responsibilities.
 2. Experience Level & Relevance (0.0 to 2.5 pts): years, seniority, and directly comparable work.
-3. Education & Qualifications (0.0 to 1.5 pts): only qualifications relevant to this JD.
+3. Education & Qualifications (0.0 to 1.5 pts): award the full 1.5 points for any clearly completed regular degree, regardless of academic stream, specialization, distinction, or ordinary pass. Do not reduce this score because the degree is unrelated to the JD. If education is missing, incomplete, unverifiable, or explicitly non-regular, record that as a concern for HR review rather than silently changing the score.
 4. Overall Fit & Potential (0.0 to 2.5 pts): role, domain, responsibility, and project alignment.
 The total_score MUST equal the sum of the four component scores, rounded to one decimal. Missing mandatory requirements must materially reduce the score. A candidate with a different technology domain must not receive a high score merely for having general engineering experience.
 
@@ -72,6 +72,12 @@ Respond strictly in valid JSON format:
   "strengths": ["Key strength 1", "Key strength 2"],
   "concerns": ["Area of concern or weakness"],
   "interview_focus": ["Topic to assess during technical interview"],
+    "score_explanations": {{
+        "technical_skills": "Why this score matches the JD technologies and responsibilities",
+        "experience": "Why this score matches the JD seniority and relevant work",
+        "education": "Education evidence and the qualification policy applied",
+        "overall_fit": "Why the candidate's role, domain, and project fit earned this score"
+    }},
   "reasoning": "A concise 2-3 sentence justification explaining the score breakdown and decision."
 }}
 """
@@ -111,6 +117,14 @@ Respond strictly in valid JSON format:
             except (TypeError, ValueError):
                 value = 0.0
             component_scores[name] = max(0.0, min(limit, value))
+        education_text = str(candidate_data.get("education", ""))
+        has_completed_degree = bool(re.search(
+            r"\b(?:b\.?s\.?|b\.?a\.?|bachelor|m\.?s\.?|m\.?a\.?|master|ph\.?d|doctorate|degree|diploma)\b",
+            education_text,
+            re.I,
+        ))
+        if has_completed_degree:
+            component_scores["education_score"] = 1.5
         # The model explains the evidence, but the application owns the final arithmetic.
         total_score = sum(component_scores.values())
         total_score = max(0.0, min(10.0, round(total_score, 1)))
@@ -130,6 +144,11 @@ Respond strictly in valid JSON format:
 
         processing_time = round(time.time() - start_time, 2)
         self.processing_times.append(processing_time)
+
+        score_explanations = dict(scoring_data.get("score_explanations", {}))
+        score_explanations["education"] = self._default_score_explanations(
+            candidate_data, component_scores
+        )["education"]
 
         decision_record = {
             "candidate_id": candidate_data.get("candidate_id", candidate_name.lower().replace(" ", "_")),
@@ -152,6 +171,10 @@ Respond strictly in valid JSON format:
                 "experience": round(component_scores["experience_score"], 1),
                 "education": round(component_scores["education_score"], 1),
                 "overall_fit": round(component_scores["overall_fit_score"], 1)
+            },
+            "score_explanations": {
+                **self._default_score_explanations(candidate_data, component_scores),
+                **score_explanations,
             },
             "processing_time": processing_time
         }
@@ -191,8 +214,10 @@ Respond strictly in valid JSON format:
         else:
             exp_score = 1.0
 
-        # Education & Seniority
-        edu_score = 1.5 if "senior" in title or "lead" in title or "m.s." in str(candidate_data.get("education", "")).lower() else 1.2
+        # Education is a qualification gate, not a relevance multiplier.
+        education_text = str(candidate_data.get("education", ""))
+        degree_present = bool(re.search(r"\b(?:b\.?s\.?|b\.?a\.?|bachelor|m\.?s\.?|m\.?a\.?|master|ph\.?d|doctorate|degree|diploma)\b", education_text, re.I))
+        edu_score = 1.5 if degree_present else 0.0
         jd_title_terms = [term for term in required_terms if term in title]
         fit_score = round(2.5 * len(jd_title_terms) / max(1, min(4, len(required_terms))), 1)
 
@@ -215,6 +240,12 @@ Respond strictly in valid JSON format:
         if not concerns:
             concerns.append("Verify direct experience in enterprise CI/CD environments")
 
+        score_explanations = self._default_score_explanations(candidate_data, {
+            "technical_skills_score": tech_score,
+            "experience_score": exp_score,
+            "education_score": edu_score,
+            "overall_fit_score": fit_score,
+        })
         return {
             "technical_skills_score": tech_score,
             "experience_score": exp_score,
@@ -225,6 +256,24 @@ Respond strictly in valid JSON format:
             "concerns": concerns,
             "interview_focus": ["Full-stack architecture", "API design and optimization", "Team collaboration"],
             "reasoning": f"Candidate demonstrates strong technical alignment with key technologies ({', '.join(skills[:3])}) and {exp_years} years experience."
+            ,"score_explanations": score_explanations
+        }
+
+    def _default_score_explanations(self, candidate_data: Dict[str, Any], scores: Dict[str, float]) -> Dict[str, str]:
+        """Create transparent score rationales when the model does not provide them."""
+        skills = ", ".join(candidate_data.get("key_skills", [])[:5]) or "no explicit skills"
+        education = str(candidate_data.get("education", "Not specified"))
+        degree_present = bool(re.search(r"\b(?:b\.?s\.?|b\.?a\.?|bachelor|m\.?s\.?|m\.?a\.?|master|ph\.?d|doctorate|degree|diploma)\b", education, re.I))
+        education_reason = (
+            f"Full 1.5/1.5: completed degree evidence found ({education}); stream and distinction do not reduce this qualification score."
+            if degree_present else
+            "0.0/1.5: no clearly completed degree evidence was found; HR should verify education before a final decision."
+        )
+        return {
+            "technical_skills": f"{scores['technical_skills_score']}/3.5 based on overlap between the JD requirements and resume skills ({skills}).",
+            "experience": f"{scores['experience_score']}/2.5 based on the candidate's stated experience and relevance to the responsibilities in the JD.",
+            "education": education_reason,
+            "overall_fit": f"{scores['overall_fit_score']}/2.5 based on role, domain, responsibility, and project alignment with the active JD.",
         }
 
     def process_all(self, candidate_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

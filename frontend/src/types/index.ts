@@ -24,6 +24,12 @@ export interface CandidateEvaluation {
   interview_focus: string[];
   reasoning: string;
   detailed_scores: ScoreBreakdown;
+  score_explanations?: {
+    technical_skills: string;
+    experience: string;
+    education: string;
+    overall_fit: string;
+  };
   processing_time: number;
   is_new?: boolean;
 }
