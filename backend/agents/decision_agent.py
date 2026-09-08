@@ -294,7 +294,33 @@ Respond strictly in valid JSON format:
 
     def _default_score_explanations(self, candidate_data: Dict[str, Any], scores: Dict[str, float]) -> Dict[str, str]:
         """Create transparent score rationales when the model does not provide them."""
-        skills = ", ".join(candidate_data.get("key_skills", [])[:5]) or "no explicit skills"
+        candidate_text = f"{' '.join(str(skill) for skill in candidate_data.get('key_skills', []))} {candidate_data.get('resume_text', '')}".lower()
+        jd_terms = list(dict.fromkeys(re.findall(
+            r"\b(?:python|java|javascript|typescript|react|next\.js|node\.js|fastapi|django|flask|sql|postgresql|mysql|mongodb|redis|docker|kubernetes|aws|azure|gcp|terraform|snowflake|spark|pyspark|etl|langchain|llm|graphql|linux|go|php|\.net|kafka|jenkins|oracle|airflow|dbt)\b",
+            self.job_description.lower(),
+        )))
+        matched_terms = [term for term in jd_terms if term in candidate_text]
+        missing_terms = [term for term in jd_terms if term not in candidate_text]
+        skills = ", ".join(matched_terms[:6]) or "no explicit JD technology match"
+        technical_reason = f"{scores['technical_skills_score']}/5.0: matched {len(matched_terms)} of {len(jd_terms)} detected JD technologies ({skills})."
+        if missing_terms:
+            technical_reason += f" Reduced because these JD technologies were not evidenced: {', '.join(missing_terms[:5])}."
+        else:
+            technical_reason += " No detected JD technology gaps."
+
+        experience_text = str(candidate_data.get("experience_years", "Not specified"))
+        experience_match = re.search(r"(\d+(?:\.\d+)?)", experience_text)
+        candidate_years = float(experience_match.group(1)) if experience_match else None
+        jd_experience_match = re.search(r"(\d+(?:\.\d+)?)\s*\+?\s*years?", self.job_description.lower())
+        required_years = float(jd_experience_match.group(1)) if jd_experience_match else None
+        experience_reason = f"{scores['experience_score']}/1.5: based on {experience_text} and directly relevant responsibilities."
+        if required_years is not None and candidate_years is not None and candidate_years < required_years:
+            experience_reason += f" Reduced because the JD asks for about {required_years:g}+ years and the resume shows {candidate_years:g}."
+        elif scores["experience_score"] < 1.5:
+            experience_reason += " Reduced because seniority or directly comparable responsibility was not fully evidenced."
+        else:
+            experience_reason += " Full experience points awarded for the evidence provided."
+
         education = str(candidate_data.get("education", "Not specified"))
         degree_present = self._has_completed_degree(education)
         certification_gap = self._certification_gap(candidate_data)
@@ -306,11 +332,24 @@ Respond strictly in valid JSON format:
             "0.0/1.5: no clearly completed degree evidence was found; HR should verify education before a final decision."
         )
         return {
-            "technical_skills": f"{scores['technical_skills_score']}/5.0 based on overlap between the JD requirements and resume skills ({skills}); technical alignment is the primary filter.",
-            "experience": f"{scores['experience_score']}/1.5 based on the candidate's stated experience and relevance to the responsibilities in the JD.",
+            "technical_skills": technical_reason,
+            "experience": experience_reason,
             "education": education_reason,
-            "overall_fit": f"{scores['overall_fit_score']}/2.0 based on role, domain, responsibility, and project alignment with the active JD.",
+            "overall_fit": self._fit_score_explanation(scores, matched_terms, missing_terms),
         }
+
+    def _fit_score_explanation(self, scores: Dict[str, float], matched_terms: List[str], missing_terms: List[str]) -> str:
+        reason = f"{scores['overall_fit_score']}/2.0: based on role, domain, responsibility, and project alignment with the active JD."
+        if scores["overall_fit_score"] < 2.0:
+            if missing_terms:
+                reason += f" Reduced because the profile does not evidence full alignment with: {', '.join(missing_terms[:4])}."
+            elif len(matched_terms) < 2:
+                reason += " Reduced because limited JD-aligned evidence was available beyond general experience."
+            else:
+                reason += " Reduced because the role or project context was only partially evidenced."
+        else:
+            reason += " Full fit points awarded for the demonstrated role and project alignment."
+        return reason
 
     def _has_completed_degree(self, education: str) -> bool:
         """Recognize common completed degree formats without judging their academic stream."""
