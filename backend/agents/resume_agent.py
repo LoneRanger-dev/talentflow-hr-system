@@ -143,12 +143,18 @@ Never use a section heading such as "Candidate Resume", a resume number, a job t
     def _resolve_candidate_name(self, extracted_name: Any, content: str, candidate_id: str) -> str:
         """Reject generic headings and resolve a human name from reliable resume signals."""
         candidate = str(extracted_name or "").strip()
+        candidate_id_name = re.sub(r"[_-]+", " ", candidate_id).strip().lower()
         generic_pattern = re.compile(
             r"^(?:unknown candidate|candidate|candidate resume|resume|uploaded resume|applicant|software engineer|"
             r"senior software engineer|full stack developer|devops engineer|data engineer)(?:\s*[-|:].*)?$",
             re.I,
         )
-        if candidate and not generic_pattern.match(candidate) and not re.match(r"^\d+(?:[.)]|\s)", candidate):
+        if (
+            candidate
+            and candidate.lower() != candidate_id_name
+            and not generic_pattern.match(candidate)
+            and not re.match(r"^\d+(?:[.)]|\s)", candidate)
+        ):
             return candidate
 
         explicit_name = re.search(
@@ -158,6 +164,10 @@ Never use a section heading such as "Candidate Resume", a resume number, a job t
         )
         if explicit_name:
             return explicit_name.group(1).strip()
+
+        header_name = self._find_header_name(content)
+        if header_name:
+            return header_name
 
         email_match = re.search(r"([A-Za-z][A-Za-z0-9._%+-]*)@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", content)
         if email_match:
@@ -170,6 +180,38 @@ Never use a section heading such as "Candidate Resume", a resume number, a job t
         if re.match(r"^[A-Za-z]+(?:\s+[A-Za-z]+)+$", filename_name):
             return filename_name.title()
         return "Unknown Candidate"
+
+    def _find_header_name(self, content: str) -> Optional[str]:
+        """Find a person name in the first visible resume header lines."""
+        role_words = {
+            "engineer", "developer", "scientist", "analyst", "architect", "manager",
+            "designer", "consultant", "administrator", "specialist", "professional",
+            "resume", "curriculum", "vitae", "candidate", "applicant", "profile",
+            "skills", "experience", "education", "summary", "objective", "projects",
+        }
+        contact_words = {"email", "phone", "mobile", "linkedin", "github", "http", "www"}
+
+        for raw_line in content.splitlines()[:12]:
+            line = re.sub(r"^#+\s*", "", raw_line).strip()
+            if not line or "@" in line:
+                # A name may share a line with an email, so inspect its segments below.
+                segments = [segment.strip() for segment in line.split("|") if segment.strip()]
+            else:
+                segments = [segment.strip() for segment in re.split(r"\s{2,}|\s+[|/]\s+", line) if segment.strip()]
+
+            for segment in segments:
+                segment = re.sub(r"^(?:resume|cv)\s*[-:|]\s*", "", segment, flags=re.I).strip()
+                segment = re.sub(r"^\d+[.)]?\s*", "", segment).strip()
+                segment = re.sub(r"\s*(?:email|phone|mobile)\s*[:|-].*$", "", segment, flags=re.I).strip()
+                words = re.findall(r"[A-Za-z][A-Za-z'-]*", segment)
+                lowered = {word.lower() for word in words}
+                if not 2 <= len(words) <= 4 or lowered & role_words or lowered & contact_words:
+                    continue
+                if any(len(word) < 2 for word in words):
+                    continue
+                if all(word[0].isupper() for word in words):
+                    return " ".join(words)
+        return None
 
     def get_agent_stats(self) -> Dict[str, Any]:
         """Return agent processing performance statistics."""
