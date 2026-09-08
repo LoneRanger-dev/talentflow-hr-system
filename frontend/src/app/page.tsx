@@ -236,7 +236,6 @@ export default function Home() {
       {/* Candidate Deep-Dive Drawer */}
       <CandidateDrawer
         candidate={selectedCandidate}
-        activeJdImage={health?.active_jd_image}
         onClose={() => setSelectedCandidate(null)}
         onOpenEmail={handleOpenEmail}
         onDeleteCandidate={handleDeleteCandidate}

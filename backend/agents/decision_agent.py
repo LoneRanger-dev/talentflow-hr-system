@@ -56,18 +56,18 @@ FULL RESUME:
 
 SCORING RULES (score only evidence in the JD and resume; do not use generic software-engineering assumptions):
 1. Technical Skills Match (0.0 to 5.0 pts): required and preferred technologies, domain tools, and responsibilities. This is the primary filter for the role.
-2. Experience Level & Relevance (0.0 to 2.0 pts): years, seniority, and directly comparable work.
+2. Experience Level & Relevance (0.0 to 1.5 pts): years, seniority, and directly comparable work.
 3. Education & Qualifications (0.0 to 1.5 pts): award the full 1.5 points for any clearly completed regular degree, regardless of academic stream, specialization, distinction, or ordinary pass. Do not reduce this score because the degree is unrelated to the JD. If the JD explicitly requires or strongly prefers a relevant external certification and the resume does not show one, deduct exactly 0.3 points from this category. If the JD has no relevant certification requirement, do not deduct anything. If education is missing, incomplete, unverifiable, or explicitly non-regular, record that as a concern for HR review rather than silently changing the score.
-4. Overall Fit & Potential (0.0 to 1.5 pts): role, domain, responsibility, and project alignment.
+4. Overall Fit & Potential (0.0 to 2.0 pts): role, domain, responsibility, and project alignment.
 The total_score MUST equal the sum of the four component scores, rounded to one decimal. Missing mandatory requirements must materially reduce the score. A candidate with a different technology domain must not receive a high score merely for having general engineering experience.
 
 Respond strictly in valid JSON format:
 {{
   "candidate_name": "{candidate_name}",
     "technical_skills_score": 3.5,
-    "experience_score": 2.0,
+    "experience_score": 1.0,
     "education_score": 1.0,
-    "overall_fit_score": 1.0,
+    "overall_fit_score": 1.5,
     "total_score": 7.0,
   "strengths": ["Key strength 1", "Key strength 2"],
   "concerns": ["Area of concern or weakness"],
@@ -106,9 +106,9 @@ Respond strictly in valid JSON format:
         # Make autonomous decision based on thresholds
         component_limits = {
             "technical_skills_score": 5.0,
-            "experience_score": 2.0,
+            "experience_score": 1.5,
             "education_score": 1.5,
-            "overall_fit_score": 1.5,
+            "overall_fit_score": 2.0,
         }
         component_scores = {}
         for name, limit in component_limits.items():
@@ -207,11 +207,11 @@ Respond strictly in valid JSON format:
             exp_years = float(exp_match.group(1))
 
         if exp_years >= 5:
-            exp_score = 2.0
+            exp_score = 1.5
         elif exp_years >= 3:
-            exp_score = 1.8
+            exp_score = 1.35
         elif exp_years >= 2:
-            exp_score = 1.3
+            exp_score = 1.0
         else:
             exp_score = 0.8
 
@@ -223,7 +223,7 @@ Respond strictly in valid JSON format:
         if certification_gap and degree_present:
             edu_score = 1.2
         jd_title_terms = [term for term in required_terms if term in title]
-        fit_score = round(1.5 * len(jd_title_terms) / max(1, min(4, len(required_terms))), 1)
+        fit_score = round(2.0 * len(jd_title_terms) / max(1, min(4, len(required_terms))), 1)
 
         total = round(tech_score + exp_score + edu_score + fit_score, 1)
 
@@ -266,7 +266,7 @@ Respond strictly in valid JSON format:
     def _minimum_fit_score(self, scores: Dict[str, float]) -> float:
         """Prevent a zero fit score when other job-relevant evidence demonstrates alignment."""
         technical_ratio = scores["technical_skills_score"] / 5.0
-        experience_ratio = scores["experience_score"] / 2.0
+        experience_ratio = scores["experience_score"] / 1.5
         education_ratio = scores["education_score"] / 1.5
         evidence_ratio = (technical_ratio * 0.55) + (experience_ratio * 0.35) + (education_ratio * 0.10)
         if evidence_ratio >= 0.75:
@@ -311,9 +311,9 @@ Respond strictly in valid JSON format:
         )
         return {
             "technical_skills": f"{scores['technical_skills_score']}/5.0 based on overlap between the JD requirements and resume skills ({skills}); technical alignment is the primary filter.",
-            "experience": f"{scores['experience_score']}/2.0 based on the candidate's stated experience and relevance to the responsibilities in the JD.",
+            "experience": f"{scores['experience_score']}/1.5 based on the candidate's stated experience and relevance to the responsibilities in the JD.",
             "education": education_reason,
-            "overall_fit": f"{scores['overall_fit_score']}/1.5 based on role, domain, responsibility, and project alignment with the active JD.",
+            "overall_fit": f"{scores['overall_fit_score']}/2.0 based on role, domain, responsibility, and project alignment with the active JD.",
         }
 
     def process_all(self, candidate_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

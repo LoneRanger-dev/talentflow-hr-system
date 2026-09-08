@@ -7,7 +7,6 @@ import { X, CheckCircle, AlertTriangle, Target, Brain, Mail, Trash2, Cpu, Send, 
 interface CandidateDrawerProps {
   candidate: CandidateEvaluation | null;
   activeJdTitle?: string;
-  activeJdImage?: string;
   onClose: () => void;
   onOpenEmail: (candidate: CandidateEvaluation) => void;
   onDeleteCandidate: (candidate: CandidateEvaluation) => void;
@@ -17,7 +16,6 @@ interface CandidateDrawerProps {
 export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
   candidate,
   activeJdTitle,
-  activeJdImage,
   onClose,
   onOpenEmail,
   onDeleteCandidate,
@@ -119,15 +117,6 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
             </span>
           </div>
 
-          {activeJdImage && (
-            <div className="rounded-2xl border border-slate-800 overflow-hidden relative max-h-44">
-              <img src={activeJdImage} alt="Project JD Diagram" className="w-full h-44 object-cover" />
-              <div className="absolute bottom-2 left-2 rounded-lg bg-black/80 px-2.5 py-1 text-[10px] font-semibold text-white">
-                Project Architecture Diagram
-              </div>
-            </div>
-          )}
-
           {/* Decision Summary Card */}
           <div className="rounded-2xl bg-slate-900/80 p-5 border border-slate-800 space-y-4">
             <div className="flex items-center justify-between">
@@ -180,10 +169,10 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-slate-300">Experience Level & Relevance</span>
-                <span className="font-semibold text-white">{detailed_scores.experience} / 2.0</span>
+                <span className="font-semibold text-white">{detailed_scores.experience} / 1.5</span>
               </div>
               <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
-                <div style={{ width: `${(detailed_scores.experience / 2.0) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
+                <div style={{ width: `${(detailed_scores.experience / 1.5) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{score_explanations?.experience}</p>
             </div>
@@ -204,10 +193,10 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-slate-300">Overall Fit & Potential</span>
-                <span className="font-semibold text-white">{detailed_scores.overall_fit} / 1.5</span>
+                <span className="font-semibold text-white">{detailed_scores.overall_fit} / 2.0</span>
               </div>
               <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
-                <div style={{ width: `${(detailed_scores.overall_fit / 1.5) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
+                <div style={{ width: `${(detailed_scores.overall_fit / 2.0) * 100}%` }} className="h-full bg-indigo-500 rounded-full" />
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{score_explanations?.overall_fit}</p>
             </div>
