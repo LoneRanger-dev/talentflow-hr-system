@@ -270,6 +270,14 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
                     <p className="font-semibold text-slate-100">{response.next_question.question}</p>
                     <p className="mt-1 text-[10px] text-slate-500">Validating: {response.next_question.competency}</p>
                   </article>}
+                  {response?.questions?.map((question, questionIndex) => <article key={questionIndex} className="rounded-lg border border-cyan-500/10 p-2.5">
+                    <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-cyan-300">{question.category}</div>
+                    <p className="font-semibold text-slate-100">{question.question}</p>
+                    <p className="mt-2 text-[10px] leading-relaxed text-emerald-200"><span className="font-semibold">Expected answer:</span> {question.expected_answer}</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-slate-400"><span className="font-semibold text-slate-300">Strong candidate should mention:</span> {question.strong_candidate_should_mention}</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-slate-500"><span className="font-semibold text-slate-400">Follow-up:</span> {question.follow_up}</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-slate-500"><span className="font-semibold text-slate-400">Evaluation:</span> {question.evaluation}</p>
+                  </article>)}
                 </div>;
               })}
             </div>

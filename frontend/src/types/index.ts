@@ -100,10 +100,19 @@ export interface InterviewChatMessage {
 
 export interface InterviewChatResponse {
   reply: string;
-  next_question: {
+  mode?: 'live' | 'generator';
+  next_question?: {
     category: string;
     question: string;
     competency: string;
     difficulty: string;
   };
+  questions?: Array<{
+    category: string;
+    question: string;
+    expected_answer: string;
+    strong_candidate_should_mention: string;
+    follow_up: string;
+    evaluation: string;
+  }>;
 }
