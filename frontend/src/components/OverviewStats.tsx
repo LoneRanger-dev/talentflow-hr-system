@@ -61,10 +61,10 @@ export const OverviewStats: React.FC<OverviewStatsProps> = ({ analytics, loading
           </div>
           <div className="mt-3">
             <div className="flex items-baseline space-x-2">
-              <span className="text-3xl font-extrabold text-white">{roi_analytics?.efficiency_gain_percentage || 93.6}%</span>
+              <span className="text-3xl font-extrabold text-white">{roi_analytics?.efficiency_gain_percentage ?? 0}%</span>
               <span className="text-xs font-semibold text-emerald-400">Faster Screening</span>
             </div>
-            <p className="mt-1 text-xs text-slate-400">{roi_analytics?.hours_saved || 3.5} hrs manual work saved</p>
+            <p className="mt-1 text-xs text-slate-400">{roi_analytics?.hours_saved ?? 0} hrs manual work saved</p>
           </div>
         </div>
 
@@ -78,10 +78,10 @@ export const OverviewStats: React.FC<OverviewStatsProps> = ({ analytics, loading
           </div>
           <div className="mt-3">
             <div className="flex items-baseline space-x-2">
-              <span className="text-3xl font-extrabold text-white">${roi_analytics?.cost_savings_usd || 280}</span>
+              <span className="text-3xl font-extrabold text-white">${roi_analytics?.cost_savings_usd ?? 0}</span>
               <span className="text-xs font-semibold text-amber-400">Est. Savings</span>
             </div>
-            <p className="mt-1 text-xs text-slate-400">${roi_analytics?.savings_per_hire || 35} saved per evaluation</p>
+            <p className="mt-1 text-xs text-slate-400">${roi_analytics?.savings_per_hire ?? 0} saved per evaluation</p>
           </div>
         </div>
 
