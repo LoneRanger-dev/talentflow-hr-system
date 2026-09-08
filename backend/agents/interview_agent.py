@@ -84,6 +84,60 @@ Return ONLY valid JSON with exactly 10 questions. Cover: role-specific technical
             })
         return valid
 
+    def chat(self, job_description: str, candidate: Dict[str, Any], messages: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Continue an interviewer conversation grounded in the JD and candidate evidence."""
+        safe_messages = [
+            {"role": str(item.get("role", "user")), "content": str(item.get("content", ""))[:3000]}
+            for item in messages[-12:] if item.get("content")
+        ]
+        transcript = "\n".join(f"{item['role'].upper()}: {item['content']}" for item in safe_messages)
+        prompt = f"""You are an enterprise technical interviewer assistant.
+Use the complete job description and candidate resume as your source of truth. Continue the interviewer's conversation. When the interviewer gives sample questions, generate relevant follow-ups grounded in a JD requirement, candidate claim, or competency gap. Never invent experience.
+
+JOB DESCRIPTION:
+{job_description}
+
+CANDIDATE: {candidate.get('name', 'Candidate')}
+FULL RESUME:
+{candidate.get('resume_text', '')}
+
+CONVERSATION:
+{transcript}
+
+Return ONLY valid JSON with "reply" and "questions". Each question needs category, question, answer, and evaluation_focus. Return 2 to 5 questions only when questions are requested; otherwise return an empty list.
+"""
+        if self.llm:
+            try:
+                response = self.llm.invoke(prompt) if hasattr(self.llm, "invoke") else self.llm(prompt)
+                response_text = response.content if hasattr(response, "content") else str(response)
+                match = re.search(r"\{.*\}", response_text, re.DOTALL)
+                if match:
+                    parsed = json.loads(match.group())
+                    return {
+                        "reply": str(parsed.get("reply", "Here are JD-grounded follow-up questions.")),
+                        "questions": self._validate_questions(parsed.get("questions", []))[:5],
+                    }
+            except Exception as exc:
+                print(f"Interview chat fallback: {exc}")
+
+        latest = safe_messages[-1]["content"] if safe_messages else ""
+        jd_terms = list(dict.fromkeys(re.findall(r"\b(?:python|react|typescript|javascript|aws|azure|gcp|kubernetes|terraform|snowflake|sql|etl|docker|fastapi|llm|langchain|api|security|leadership)\b", job_description.lower())))
+        anchor = ", ".join(jd_terms[:4]) or "the core requirements in the JD"
+        questions = [
+            f"Can you walk us through a project where you applied {anchor} to solve the problem in your sample question?",
+            "What trade-off did you make in that situation, and what would you change after reviewing the result?",
+            "How would you validate that approach in production against the success criteria in this job description?",
+        ]
+        return {
+            "reply": f"I grounded these follow-ups in the active JD and candidate evidence. I used your sample: '{latest[:180]}'.",
+            "questions": [
+                {"question_number": index, "category": "Follow-up", "question": question,
+                 "answer": f"A strong answer should connect directly to {anchor}, describe the candidate's contribution, and provide measurable evidence.",
+                 "evaluation_focus": "Specificity, technical depth, evidence, and alignment with the JD."}
+                for index, question in enumerate(questions, start=1)
+            ],
+        }
+
     def _fallback_questions(self, job_description: str, candidate: Dict[str, Any], seed: int) -> List[Dict[str, Any]]:
         randomizer = random.Random(seed)
         candidate_name = str(candidate.get("name", "the candidate"))

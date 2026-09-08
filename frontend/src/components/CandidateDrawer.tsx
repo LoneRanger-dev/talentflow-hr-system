@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { CandidateEvaluation, InterviewQuestionPack } from '../types';
-import { X, CheckCircle, AlertTriangle, Target, Brain, Mail, Trash2, Cpu, RefreshCw, BookOpen } from 'lucide-react';
+import { CandidateEvaluation, InterviewChatMessage, InterviewChatResponse } from '../types';
+import { X, CheckCircle, AlertTriangle, Target, Brain, Mail, Trash2, Cpu, Send, BookOpen } from 'lucide-react';
 
 interface CandidateDrawerProps {
   candidate: CandidateEvaluation | null;
@@ -11,7 +11,7 @@ interface CandidateDrawerProps {
   onClose: () => void;
   onOpenEmail: (candidate: CandidateEvaluation) => void;
   onDeleteCandidate: (candidate: CandidateEvaluation) => void;
-  onGenerateInterviewQuestions: (candidateId: string) => Promise<InterviewQuestionPack>;
+  onInterviewChat: (candidateId: string, messages: InterviewChatMessage[]) => Promise<InterviewChatResponse>;
 }
 
 export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
@@ -21,30 +21,41 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
   onClose,
   onOpenEmail,
   onDeleteCandidate,
-  onGenerateInterviewQuestions
+  onInterviewChat
 }) => {
-  const [questionPack, setQuestionPack] = useState<InterviewQuestionPack | null>(null);
-  const [questionsLoading, setQuestionsLoading] = useState(false);
-  const [questionsError, setQuestionsError] = useState('');
+  const [chatMessages, setChatMessages] = useState<InterviewChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
 
   useEffect(() => {
-    setQuestionPack(null);
-    setQuestionsError('');
+    setChatMessages([]);
+    setChatInput('');
+    setChatError('');
   }, [candidate?.candidate_id]);
 
   if (!candidate) return null;
 
   const { detailed_scores } = candidate;
 
-  const refreshQuestions = async () => {
-    setQuestionsLoading(true);
-    setQuestionsError('');
+  const sendChat = async () => {
+    const content = chatInput.trim();
+    if (!content || chatLoading) return;
+    const nextMessages: InterviewChatMessage[] = [...chatMessages, { role: 'user', content }];
+    setChatMessages(nextMessages);
+    setChatInput('');
+    setChatLoading(true);
+    setChatError('');
     try {
-      setQuestionPack(await onGenerateInterviewQuestions(candidate.candidate_id));
+      const response = await onInterviewChat(candidate.candidate_id, nextMessages);
+      setChatMessages([...nextMessages, {
+        role: 'assistant',
+        content: JSON.stringify(response)
+      }]);
     } catch (error) {
-      setQuestionsError(error instanceof Error ? error.message : 'Unable to generate interview questions');
+      setChatError(error instanceof Error ? error.message : 'Unable to reach interview assistant');
     } finally {
-      setQuestionsLoading(false);
+      setChatLoading(false);
     }
   };
 
@@ -234,45 +245,35 @@ export const CandidateDrawer: React.FC<CandidateDrawerProps> = ({
             </ul>
           </div>
 
-          {/* JD-grounded interview preparation */}
+          {/* JD-grounded interview chat */}
           <div className="rounded-2xl bg-cyan-950/20 p-5 border border-cyan-500/20 space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-cyan-300 flex items-center text-xs">
-                  <BookOpen className="mr-1.5 h-4 w-4 text-cyan-400" /> Interview Preparation Pack
-                </h3>
-                <p className="mt-1 text-[10px] text-slate-400">Ten questions researched from this JD and candidate resume, with answer guides.</p>
-              </div>
-              <button
-                onClick={refreshQuestions}
-                disabled={questionsLoading}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-cyan-600/20 px-3 py-2 text-[10px] font-semibold text-cyan-200 border border-cyan-500/30 hover:bg-cyan-600/30 disabled:opacity-50"
-                title="Generate a new set of ten questions"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${questionsLoading ? 'animate-spin' : ''}`} />
-                {questionPack ? 'Refresh 10' : 'Generate 10'}
+            <h3 className="font-bold text-cyan-300 flex items-center text-xs">
+              <BookOpen className="mr-1.5 h-4 w-4 text-cyan-400" /> Interview Research Chat
+            </h3>
+            <p className="text-[10px] text-slate-400">Give one or two sample questions. The assistant will create relevant follow-ups from this JD and resume.</p>
+            <div className="max-h-96 space-y-3 overflow-y-auto">
+              {chatMessages.map((message, index) => {
+                if (message.role === 'user') return <div key={index} className="ml-6 rounded-xl bg-cyan-500/10 p-3 text-[11px] text-cyan-100">{message.content}</div>;
+                let response: InterviewChatResponse | null = null;
+                try { response = JSON.parse(message.content) as InterviewChatResponse; } catch { response = null; }
+                return <div key={index} className="mr-2 space-y-2 rounded-xl bg-slate-950/70 p-3 border border-cyan-500/10">
+                  <p className="text-[11px] leading-relaxed text-slate-300">{response?.reply || message.content}</p>
+                  {response?.questions.map((question, questionIndex) => <article key={questionIndex} className="rounded-lg border border-cyan-500/10 p-2.5">
+                    <p className="font-semibold text-slate-100">{question.question}</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-emerald-200"><span className="font-semibold">Answer guide:</span> {question.answer}</p>
+                    <p className="mt-1 text-[10px] text-slate-500"><span className="font-semibold text-slate-400">Evaluate:</span> {question.evaluation_focus}</p>
+                  </article>)}
+                </div>;
+              })}
+            </div>
+            {chatError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-[10px] text-rose-300">{chatError}</p>}
+            <div className="flex gap-2">
+              <textarea value={chatInput} onChange={event => setChatInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendChat(); } }} rows={2} placeholder="e.g. Ask a deeper follow-up on the candidate's AWS project..." className="flex-1 rounded-lg bg-slate-950 p-2.5 text-[11px] text-slate-200 border border-slate-800 focus:border-cyan-500 focus:outline-none" />
+              <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()} className="self-end rounded-lg bg-cyan-600 p-2.5 text-white hover:bg-cyan-500 disabled:opacity-50" title="Send sample question">
+                <Send className="h-4 w-4" />
               </button>
             </div>
-
-            {questionsError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-[10px] text-rose-300">{questionsError}</p>}
-            {questionsLoading && <p className="text-[10px] text-cyan-200">Analyzing the job requirements and candidate evidence...</p>}
-            {questionPack && !questionsLoading && (
-              <div className="space-y-3">
-                {questionPack.questions.map(question => (
-                  <article key={`${questionPack.generation_seed}-${question.question_number}`} className="rounded-xl bg-slate-950/70 p-3.5 border border-cyan-500/10">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="font-semibold leading-relaxed text-slate-100">{question.question_number}. {question.question}</p>
-                      <span className="shrink-0 rounded-md bg-cyan-500/10 px-2 py-1 text-[9px] font-semibold text-cyan-300">{question.category}</span>
-                    </div>
-                    <div className="mt-2 border-l-2 border-emerald-500/50 pl-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Answer guide</p>
-                      <p className="mt-1 leading-relaxed text-slate-300">{question.answer}</p>
-                    </div>
-                    <p className="mt-2 text-[10px] leading-relaxed text-slate-500"><span className="font-semibold text-slate-400">Evaluate:</span> {question.evaluation_focus}</p>
-                  </article>
-                ))}
-              </div>
-            )}
+            {chatLoading && <p className="text-[10px] text-cyan-200">Researching the JD and candidate evidence...</p>}
           </div>
 
         </div>

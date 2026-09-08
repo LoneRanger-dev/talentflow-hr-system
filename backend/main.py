@@ -263,6 +263,14 @@ class InterviewQuestionsRequest(BaseModel):
     candidate_id: str
     generation_seed: Optional[int] = None
 
+class InterviewChatMessage(BaseModel):
+    role: str
+    content: str
+
+class InterviewChatRequest(BaseModel):
+    candidate_id: str
+    messages: List[InterviewChatMessage]
+
 class BulkDeleteRequest(BaseModel):
     candidate_ids: List[str]
 
@@ -583,6 +591,18 @@ def generate_interview_questions(req: InterviewQuestionsRequest):
         state.decision_agent.job_description,
         candidate,
         req.generation_seed,
+    )
+
+@app.post("/api/interview-chat")
+def interview_chat(req: InterviewChatRequest):
+    """Continue an interviewer chat using the active JD and full candidate resume."""
+    candidate = state.cached_candidates.get(req.candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate '{req.candidate_id}' not found.")
+    return state.interview_agent.chat(
+        state.decision_agent.job_description,
+        candidate,
+        [message.model_dump() for message in req.messages],
     )
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-import { CandidateEvaluation, SystemAnalytics, HealthResponse, CandidateEmail, PresetJD, InterviewQuestionPack } from '../types';
+import { CandidateEvaluation, SystemAnalytics, HealthResponse, CandidateEmail, PresetJD, InterviewQuestionPack, InterviewChatMessage, InterviewChatResponse } from '../types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -608,5 +608,15 @@ export async function generateInterviewQuestions(candidateId: string): Promise<I
     body: JSON.stringify({ candidate_id: candidateId, generation_seed: Date.now() })
   });
   if (!res.ok) throw new Error('Failed to generate interview questions');
+  return await res.json();
+}
+
+export async function interviewChat(candidateId: string, messages: InterviewChatMessage[]): Promise<InterviewChatResponse> {
+  const res = await fetch(`${API_BASE}/interview-chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ candidate_id: candidateId, messages })
+  });
+  if (!res.ok) throw new Error('Interview assistant is unavailable');
   return await res.json();
 }

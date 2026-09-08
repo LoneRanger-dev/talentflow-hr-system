@@ -15,7 +15,7 @@ import {
   bulkDeleteCandidates,
   clearAllCandidates,
   generateCandidateEmail,
-  generateInterviewQuestions
+  interviewChat
 } from '../services/api';
 import { updateConfig } from '../services/api';
 
@@ -235,7 +235,7 @@ export default function Home() {
         onClose={() => setSelectedCandidate(null)}
         onOpenEmail={handleOpenEmail}
         onDeleteCandidate={handleDeleteCandidate}
-        onGenerateInterviewQuestions={generateInterviewQuestions}
+        onInterviewChat={interviewChat}
       />
 
       {/* Modals */}

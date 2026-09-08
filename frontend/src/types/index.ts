@@ -86,3 +86,13 @@ export interface InterviewQuestionPack {
   generation_seed: number;
   source: string;
 }
+
+export interface InterviewChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface InterviewChatResponse {
+  reply: string;
+  questions: InterviewQuestion[];
+}
